@@ -1,0 +1,24 @@
+# central config so i'm not hardcoding stuff all over the place
+
+seed: 42
+
+embed:
+  model: intfloat/e5-base-v2   # bge-base-en-v1.5 is the swappable alt
+  max_tokens: 512              # hard cap on the model, chunks must stay under this
+  batch_size: 32
+
+chunk:
+  size: 256          # tokens per chunk (measured with the model tokenizer)
+  overlap: 50        # ~20% overlap so boundary facts survive
+  strategy: fixed    # fixed | sentence
+
+retrieval:
+  k: 6               # top-k, also overridable on the cli with --k
+
+reader:
+  model: google/flan-t5-base   # local, cpu-ok, deterministic
+  max_new_tokens: 32
+
+benchmark:
+  buckets: [first, middle, last]   # first 10%, middle 40-60%, last 10%
+  k: 6
