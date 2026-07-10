@@ -1,49 +1,46 @@
 """
-the benchmark - retrieval fidelity as a function of answer position.
+the benchmark: retrieval fidelity as a function of where the answer sits in its document.
 
-this is the heart of the assignment, so read the design before the code.
+this is the core of the assignment, so read the design before the code.
 
-the trap the spec warns about: if you just take natural questions whose answers happen to
-sit at different places in the corpus and bucket them by position, any position effect is
-confounded with CONTENT. maybe the middle scores worse because middle passages are denser
-or more entangled, not because of where they are. that benchmark does not isolate the
-variable it claims to measure.
+the question the spec asks: does the retriever still FIND the answer when the answer lives
+in the middle of a document rather than at the start or end? to measure that honestly we
+need, per question, (a) a real position for the answer and (b) a real "gold" chunk that
+contains it - both derived from the actual corpus, not injected.
 
-so we isolate position the way Liu et al 2023 did - hold content constant, vary only
-position. controlled needle injection:
-  - a needle is one invented fact + its question, written so the fact does NOT otherwise
-    appear in the 12 books (elias fenn, the serrel river, etc). see questions/needles.json.
-  - to run a trial we take the real corpus as the haystack and drop the needle in at a
-    controlled relative position - first-10%, middle-40-60%, or last-10%. same needle,
-    three positions. position is now the only thing that changes between trials, so any
-    difference in the score IS a position effect. that's the isolation.
+how we get an honest position (no needles):
+  every qa pair in questions/qa.json carries an `evidence` string - a verbatim fragment of
+  the source book. we string-match it back into the raw text (whitespace-insensitively,
+  because the chunker collapses whitespace the same way) to get the answer's exact char
+  offset. offset / doc_length is the answer's relative position, which drops it into a
+  bucket: first 10%, middle 40-60%, last 10%. nothing is asserted - the bucket is wherever
+  the fact actually occurs.
 
-how injection actually works here (the cheap, clean version): the needle is embedded as one
-extra passage vector and spliced onto the warm corpus matrix - the 13k cached book vectors
-are reused untouched, we only embed the single needle. crucially the needle VECTOR is
-byte-identical across all three buckets; only the rel_pos LABEL we attach to it changes. so
-"content held constant" isn't a hope, it's exact - the same vector literally competes in
-every bucket.
+how we get the gold chunk:
+  chunk.py already tags every chunk with its doc_id and exact [char_start, char_end) span.
+  the gold chunk(s) for a question are the corpus chunks from the right doc whose span
+  covers the evidence offset. a question can have >1 gold when chunks overlap; a hit is
+  finding ANY gold chunk in the top-k.
 
-what step 7 measures: LAYER A only, the retrieval stage. chunk+embed the needle, retrieve
-top-K for the needle's question against haystack+needle, check whether the needle is in the
-top-K. recall@K by bucket. the honest prediction is a roughly FLAT line across buckets,
-because independent chunk embeddings + cosine are position-invariant by construction - a
-vector doesn't know or care where in the document its text came from. if it comes out flat
-that is not a broken benchmark, it's the finding, and it's the deep point: lost-in-the-
-middle does not bite at retrieval. it bites in the READER's attention, which is layer B and
-lands in the next step.
+the measurement:
+  retrieve over the WHOLE corpus (all ~13k chunks from all 12 books), not just the answer's
+  own doc - otherwise there's nothing to be lost among and the number is meaningless. for
+  each question: embed it, cosine-rank every chunk, check whether a gold chunk landed in the
+  top-k. average hit@k per position bucket -> the baseline chart. we also sweep k to show
+  the precision/recall tradeoff the spec asks for.
 
-we also run a small NATURAL-QA set (questions/natural.json) as a realism sanity check. those
-answers are drawn from the real text at whatever position they happen to occur, so they are
-explicitly UN-ISOLATED - reported separately and labeled as such, because they measure an
-ecological question ("can we find real facts") not the controlled one. shipping both is the
-point: it shows the difference between a controlled and an observational measurement.
+the honest prediction:
+  a chunk vector does NOT encode where in its document the text sat - the embedding of a
+  paragraph is identical whether it was at 5% or 95%. so a clean cosine retriever is largely
+  position-insensitive, and the three buckets may come out roughly FLAT. if they do, that's
+  the finding, not a bug: lost-in-the-middle is an attention failure in the READER, not a
+  retrieval failure. we report the flatness straight and don't manufacture a U-shape.
 
     python -m src.benchmark
 """
 
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -53,168 +50,181 @@ from src.corpus import build_corpus
 from src.retrieve import cosine_sim, precision_at_k, recall_at_k, top_k
 
 ROOT = Path(__file__).resolve().parent.parent
-QUESTIONS = ROOT / "questions"
+QA_FILE = ROOT / "questions" / "qa.json"
+RAW_DIR = ROOT / "data" / "raw"
 
-# bucket -> the relative position we inject the needle at. the spec's windows are first-10%,
-# middle-40-60%, last-10%; we use each window's midpoint as the single injection point so a
-# needle sits squarely inside its bucket. rel_pos is only a LABEL on the needle here (layer A
-# retrieval is position-invariant so the number doesn't touch the score) - it becomes load-
-# bearing in layer B, where the needle's slot in the assembled context is what the reader
-# sees. keeping the buckets identical across both layers keeps the before/after comparable.
-BUCKET_POS = {"first": 0.05, "middle": 0.50, "last": 0.95}
+BUCKETS = ["first", "middle", "last"]
 
 
-def load_needles():
-    return json.loads((QUESTIONS / "needles.json").read_text())
+def load_qa():
+    return json.loads(QA_FILE.read_text())
 
 
-def load_natural():
-    return json.loads((QUESTIONS / "natural.json").read_text())
+def bucket_of(frac):
+    """the spec's three windows. anything between them is unlabeled and dropped - we only
+    keep questions whose answer sits squarely in a bucket, so the buckets stay clean."""
+    if frac < 0.10:
+        return "first"
+    if 0.40 <= frac <= 0.60:
+        return "middle"
+    if frac > 0.90:
+        return "last"
+    return None
 
 
-def inject_needle(needle_text, rel_pos, chunks, vectors, embedder):
-    """splice one needle into the warm corpus as a synthetic chunk.
+def evidence_offset(text, evidence):
+    """char offset of the evidence fragment in the raw doc, whitespace-insensitively.
 
-    returns (chunks+1, vectors+1 row, needle_idx). the needle is embedded as a PASSAGE -
-    same 'passage: ' prefix and masked mean-pool every book chunk got - so it lives in the
-    same vector space and competes on equal footing. we append it as the last row and hand
-    back its index; the row index is the chunk's identity everywhere else in the system, so
-    the needle is just chunk N with a known id.
-
-    rel_pos rides along on the needle's chunk record for layer B to read later. it does NOT
-    affect this row's vector - injecting the identical fact at 5% vs 95% produces the exact
-    same passage vector, which is precisely why this isolates position instead of confounding
-    it with content.
+    the raw books wrap lines mid-sentence, so an exact substring find fails on most quotes.
+    we match with every run of whitespace treated as flexible (\\s+) - which is legitimate
+    because chunk.py's spans come from the same text and the cli collapses whitespace the
+    same way, so the fragment we locate is the same text the model actually embeds. returns
+    the midpoint char of the match, or None if it doesn't occur (caller drops the question).
     """
-    # embed just the needle (not cached - it's one short string, embedding is instant, and
-    # caching a per-trial vector would only clutter the cache dir).
-    nvec = embedder.encode([needle_text], "passage")  # (1, dim), unit-normalized like the rest
-
-    aug_vectors = np.vstack([vectors, nvec])
-    needle_idx = len(chunks)
-    needle_chunk = {
-        "doc_id": -1,          # -1 = injected, not a real book. keeps it distinguishable.
-        "title": "[injected needle]",
-        "text": needle_text,
-        "rel_pos": rel_pos,
-        "char_start": -1,
-        "char_end": -1,
-    }
-    aug_chunks = chunks + [needle_chunk]
-    return aug_chunks, aug_vectors, needle_idx
+    parts = evidence.split()
+    pat = r"\s+".join(re.escape(p) for p in parts)
+    m = re.search(pat, text)
+    if m is None:
+        return None
+    return (m.start() + m.end()) // 2
 
 
-def run_layer_a(k=None, cfg=None):
-    """layer A: needle retrieval recall@K, broken down by position bucket.
+def resolve_qa(qa, chunks):
+    """attach each question's position bucket and its gold chunk row-indices.
 
-    for every needle x every bucket: inject, embed the question, retrieve top-K over
-    haystack+needle, record whether the needle chunk was retrieved. aggregate recall and
-    precision per bucket. the corpus is built once and reused across all trials - only the
-    single needle vector changes per trial, so 32 needles x 3 buckets is cheap.
+    gold = chunks from the answer's doc whose [char_start, char_end) span covers the
+    evidence offset. returns the list of resolved questions (dropping any whose evidence
+    doesn't match or whose position falls between buckets), each with 'bucket', 'frac',
+    'gold' (list of corpus row indices).
     """
-    cfg = cfg or load_config()
-    k = k or cfg["benchmark"]["k"]
-    needles = load_needles()
+    # group chunk row indices by doc so the gold lookup is a small scan, not a full pass
+    by_doc = {}
+    for i, c in enumerate(chunks):
+        by_doc.setdefault(c["doc_id"], []).append(i)
 
-    # build the haystack once. same (chunks, vectors) contract step 5/6 verified: row i of
-    # chunks is row i of vectors, and we never reorder.
-    chunks, vectors, embedder = build_corpus(cfg)
-
-    # per-bucket tallies of hit-rate (recall) and precision@k
-    per_bucket = {b: {"recall": [], "precision": []} for b in BUCKET_POS}
-
-    for needle in needles:
-        # embed the QUESTION once per needle - same across buckets, so no need to redo it
-        # three times. it's a query, gets the 'query: ' prefix.
-        qvec = embedder.encode([needle["question"]], "query")[0]
-
-        for bucket, rel_pos in BUCKET_POS.items():
-            aug_chunks, aug_vectors, needle_idx = inject_needle(
-                needle["needle"], rel_pos, chunks, vectors, embedder
-            )
-            scores = cosine_sim(qvec, aug_vectors)
-            ranked_idx, _ = top_k(scores, k)
-
-            per_bucket[bucket]["recall"].append(recall_at_k(ranked_idx, needle_idx, k))
-            per_bucket[bucket]["precision"].append(precision_at_k(ranked_idx, needle_idx, k))
-
-    return _summarize(per_bucket, k, n=len(needles))
+    resolved = []
+    for q in qa:
+        text = (RAW_DIR / f"{q['doc_id']}.txt").read_text(encoding="utf-8")
+        off = evidence_offset(text, q["evidence"])
+        if off is None:
+            continue
+        frac = off / max(len(text), 1)
+        bucket = bucket_of(frac)
+        if bucket is None:
+            continue
+        gold = [i for i in by_doc.get(q["doc_id"], [])
+                if chunks[i]["char_start"] <= off < chunks[i]["char_end"]]
+        if not gold:
+            continue  # no chunk covers the offset (shouldn't happen, but don't fake a gold)
+        resolved.append({**q, "bucket": bucket, "frac": frac, "gold": gold})
+    return resolved
 
 
-def run_natural(k=None, cfg=None):
-    """the un-isolated realism check. natural questions whose answers live in the real text
-    at whatever position they happen to occur - we retrieve top-K and check whether the top
-    hit lands in the doc the answer actually comes from. this is a coarse, ecological signal
-    (right document, not a labeled gold chunk), reported SEPARATELY from layer A and clearly
-    not position-controlled. it's here to show i know the difference, not to claim isolation.
+def _hit(ranked_idx, gold, k):
+    """1 if any gold chunk is in the top-k, else 0. multiple gold chunks (from overlap) all
+    count as the same target - we care whether the answer's location surfaced, not which of
+    its overlapping chunks did."""
+    topk = set(ranked_idx[:k].tolist())
+    return 1.0 if any(g in topk for g in gold) else 0.0
+
+
+def run_baseline(k=None, cfg=None):
+    """hit@k by position bucket over the whole corpus. this is the baseline chart.
+
+    build the corpus once, embed all questions once, then for each question cosine-rank
+    every chunk and check whether a gold chunk landed in the top-k. average per bucket.
     """
     cfg = cfg or load_config()
     k = k or cfg["benchmark"]["k"]
-    natural = load_natural()
 
     chunks, vectors, embedder = build_corpus(cfg)
+    qa = resolve_qa(load_qa(), chunks)
 
-    hits = 0
-    rows = []
-    for q in natural:
-        qvec = embedder.encode([q["question"]], "query")[0]
+    qvecs = embedder.encode([q["question"] for q in qa], "query")
+
+    per_bucket = {b: [] for b in BUCKETS}
+    for q, qvec in zip(qa, qvecs):
         scores = cosine_sim(qvec, vectors)
-        ranked_idx, ranked_scores = top_k(scores, k)
-        # coarse correctness: did any top-K chunk come from the doc the answer lives in?
-        retrieved_docs = {chunks[i]["doc_id"] for i in ranked_idx}
-        hit = q["doc_id"] in retrieved_docs
-        hits += int(hit)
-        rows.append((q["id"], hit, chunks[ranked_idx[0]]["title"]))
+        ranked_idx, _ = top_k(scores, k)
+        per_bucket[q["bucket"]].append(_hit(ranked_idx, q["gold"], k))
 
-    return {"k": k, "n": len(natural), "doc_hit_rate": hits / len(natural), "rows": rows}
-
-
-def _summarize(per_bucket, k, n):
-    """collapse the per-trial lists into mean recall/precision per bucket."""
-    out = {"k": k, "n": n, "buckets": {}}
-    for bucket, d in per_bucket.items():
-        out["buckets"][bucket] = {
-            "recall": float(np.mean(d["recall"])),
-            "precision": float(np.mean(d["precision"])),
-        }
+    out = {"k": k, "n": len(qa), "buckets": {}}
+    for b in BUCKETS:
+        hits = per_bucket[b]
+        out["buckets"][b] = {"hit_rate": float(np.mean(hits)) if hits else 0.0, "n": len(hits)}
     return out
 
 
-def _print_report(layer_a, natural):
-    print("=" * 62)
-    print(f"LAYER A - needle retrieval recall@{layer_a['k']} by position bucket")
-    print(f"({layer_a['n']} needles x 3 buckets, content held constant per needle)")
-    print("=" * 62)
-    print(f"  {'bucket':<8} {'recall@k':>10} {'precision@k':>12}")
-    for bucket in BUCKET_POS:
-        s = layer_a["buckets"][bucket]
-        print(f"  {bucket:<8} {s['recall']:>10.3f} {s['precision']:>12.3f}")
+def run_k_sweep(ks=(1, 3, 5, 10, 20), cfg=None):
+    """precision/recall as k grows, averaged over all questions (the spec's k-sweep).
 
-    recalls = [layer_a["buckets"][b]["recall"] for b in BUCKET_POS]
-    spread = max(recalls) - min(recalls)
-    print(f"\n  spread (max-min recall across buckets): {spread:.3f}")
-    print("  ~flat is the expected + honest result: independent chunk embeddings are")
-    print("  position-invariant, so retrieval doesn't lose the middle. the U-shape lives")
-    print("  in the reader (layer B, next step), not here.")
+    with one answer location per question, recall@k is the hit-rate (climbs then plateaus at
+    1 as k covers more of the ranking) and precision@k is hits/k (falls, since at most one of
+    the k slots is the gold). reported together so the tradeoff is explicit.
+    """
+    cfg = cfg or load_config()
+    chunks, vectors, embedder = build_corpus(cfg)
+    qa = resolve_qa(load_qa(), chunks)
+    qvecs = embedder.encode([q["question"] for q in qa], "query")
 
-    print("\n" + "-" * 62)
-    print(f"NATURAL QA (un-isolated realism check) - doc-level hit@{natural['k']}")
-    print("-" * 62)
-    print(f"  {natural['n']} real-text questions, doc_hit_rate = {natural['doc_hit_rate']:.3f}")
-    for qid, hit, title in natural["rows"]:
-        mark = "ok " if hit else "MISS"
-        print(f"    {qid}  {mark}  top1 <- {title}")
-    print("  (not position-controlled - answers sit wherever they naturally occur.)")
+    # rank the full corpus once per question, then read off each k from the same ranking
+    full = []
+    for qvec in qvecs:
+        scores = cosine_sim(qvec, vectors)
+        ranked_idx, _ = top_k(scores, len(scores))
+        full.append(ranked_idx)
+
+    rows = []
+    for k in ks:
+        recs, precs = [], []
+        for q, ranked in zip(qa, full):
+            # collapse multiple gold chunks to the best-ranked one for the metric functions,
+            # which take a single gold index. best = earliest gold in the ranking.
+            ranks = [np.where(ranked == g)[0] for g in q["gold"]]
+            positions = [int(r[0]) for r in ranks if r.size]
+            best = ranked[min(positions)] if positions else -1
+            recs.append(recall_at_k(ranked, best, k))
+            precs.append(precision_at_k(ranked, best, k))
+        rows.append({"k": k, "recall": float(np.mean(recs)), "precision": float(np.mean(precs))})
+    return {"n": len(qa), "sweep": rows}
+
+
+def _print_baseline(res):
+    print("=" * 60)
+    print(f"BASELINE - hit@{res['k']} by answer position ({res['n']} questions)")
+    print("=" * 60)
+    print(f"  {'bucket':<8} {'n':>4} {'hit@k':>8}")
+    for b in BUCKETS:
+        s = res["buckets"][b]
+        print(f"  {b:<8} {s['n']:>4} {s['hit_rate']:>8.3f}")
+    rates = [res["buckets"][b]["hit_rate"] for b in BUCKETS]
+    spread = max(rates) - min(rates)
+    print(f"\n  spread (max-min across buckets): {spread:.3f}")
+    if spread < 0.10:
+        print("  ~flat: retrieval is largely position-insensitive here, as expected - a chunk")
+        print("  vector doesn't encode where in the doc it came from. lost-in-the-middle bites")
+        print("  in the reader's attention, not at this stage. see the readme.")
+
+
+def _print_sweep(res):
+    print("\n" + "-" * 60)
+    print(f"K-SWEEP - precision/recall vs k ({res['n']} questions)")
+    print("-" * 60)
+    print(f"  {'k':>4} {'recall':>8} {'precision':>10}")
+    for r in res["sweep"]:
+        print(f"  {r['k']:>4} {r['recall']:>8.3f} {r['precision']:>10.3f}")
+    print("  recall climbs toward 1 as k grows; precision falls (one gold spread over more")
+    print("  slots). the useful k is where recall is high before precision collapses.")
 
 
 if __name__ == "__main__":
     cfg = load_config()
-    a = run_layer_a(cfg=cfg)
-    nat = run_natural(cfg=cfg)
-    _print_report(a, nat)
+    baseline = run_baseline(cfg=cfg)
+    sweep = run_k_sweep(cfg=cfg)
+    _print_baseline(baseline)
+    _print_sweep(sweep)
 
-    # persist the baseline so step 8/9 can chart it and step 11 can diff against it.
-    out = ROOT / "results" / "layer_a_baseline.json"
+    out = ROOT / "results" / "baseline.json"
     out.parent.mkdir(exist_ok=True)
-    out.write_text(json.dumps({"layer_a": a, "natural": nat}, indent=2))
+    out.write_text(json.dumps({"baseline": baseline, "k_sweep": sweep}, indent=2))
     print(f"\nwrote {out.relative_to(ROOT)}")
