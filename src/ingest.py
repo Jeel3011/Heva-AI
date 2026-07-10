@@ -21,9 +21,11 @@ MANIFEST = ROOT / "data" / "manifest.json"
 
 MIN_WORDS = 5000
 
-# curated public-domain list, leaning non-fiction / history / essays so the natural
-# QA set later has actual facts to ask about (dialogue-heavy fiction is bad for that).
-# a few extra over the 10 minimum as buffer in case one comes up short after stripping.
+# curated public-domain list, leaning non-fiction / history / essays so the QA set later
+# has actual facts to ask about (dialogue-heavy fiction is bad for that). a few extra over
+# the 10 minimum as buffer in case one comes up short after stripping.
+# note: 10615 and 15784 are what gutenberg actually serves at those ids (locke's Essay and
+# newton's Chronology) - the titles here match the content, not the ids' popular associations.
 BOOKS = [
     (2130,  "Utopia (Thomas More)"),
     (3207,  "Leviathan (Hobbes)"),
@@ -33,8 +35,8 @@ BOOKS = [
     (7370,  "Second Treatise of Government (Locke)"),
     (4280,  "The Critique of Pure Reason (Kant)"),
     (1497,  "The Republic (Plato)"),
-    (10615, "The Life of the Bee (Maeterlinck)"),
-    (15784, "The Journal of Henry David Thoreau"),
+    (10615, "An Essay Concerning Human Understanding (Locke)"),
+    (15784, "The Chronology of Ancient Kingdoms Amended (Newton)"),
     (3600,  "The Essays of Montaigne"),
     (1998,  "Thus Spake Zarathustra (Nietzsche)"),
 ]
