@@ -1,0 +1,10 @@
+[
+  {"id": "q01", "doc_id": 3300, "question": "What everyday manufactured item does Adam Smith use to illustrate the division of labour?", "answer": "pin", "note": "the pin-factory example, opening chapters of Wealth of Nations"},
+  {"id": "q02", "doc_id": 3300, "question": "What metaphor does Adam Smith use for how self-interest promotes the public good?", "answer": "invisible hand", "note": "appears once, roughly the middle of the text"},
+  {"id": "q03", "doc_id": 1497, "question": "In Plato's Republic, who does Socrates argue should rule the ideal city?", "answer": "philosopher", "note": "the philosopher-king / philosopher-ruler argument"},
+  {"id": "q04", "doc_id": 1497, "question": "What class of citizens in the Republic is trained to defend the city?", "answer": "guardians", "note": "the guardian class, discussed throughout"},
+  {"id": "q05", "doc_id": 10615, "question": "What does the old queen do when a new queen is born, according to The Life of the Bee?", "answer": "swarm", "note": "the swarming chapter, late in the book"},
+  {"id": "q06", "doc_id": 2680, "question": "By what family name is the emperor addressed in the Meditations?", "answer": "Antoninus", "note": "Marcus Aurelius Antoninus, named early"},
+  {"id": "q07", "doc_id": 3300, "question": "According to Adam Smith, what is the real source of a nation's wealth?", "answer": "labour", "note": "the annual produce of land and labour thesis"},
+  {"id": "q08", "doc_id": 1497, "question": "What allegory does Plato use to describe people mistaking shadows for reality?", "answer": "cave", "note": "the allegory of the cave"}
+]
