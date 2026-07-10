@@ -13,3 +13,4 @@ data/cache/
 *.faiss
 .idea/
 .vscode/
+*.pdf
