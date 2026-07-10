@@ -94,6 +94,28 @@ def precision_at_k(ranked_idx, gold_idx, k):
     return hits / k
 
 
+def reciprocal_rank(ranked_idx, gold_idx):
+    """1 / (1-based rank of the gold chunk in the full ranking), or 0 if it never appears.
+
+    why this alongside recall@k: recall@k is binary and saturates - once the gold chunk is
+    anywhere in the top-k it's just 1.0, so two systems that both retrieve it look identical
+    even if one ranked it #1 and the other #6. reciprocal rank keeps the whole gradient:
+    rank 1 -> 1.0, rank 2 -> 0.5, rank 10 -> 0.1, absent -> 0.0. it's also the term RRF
+    fuses over, so it earns its place twice.
+
+    pass the FULL ranking (top_k(scores, k=len(scores))), not a top-k slice - the rank is
+    only meaningful against every competitor, and a gold chunk sitting below an arbitrary k
+    cutoff should score 1/rank, not be silently dropped to 0. np.where returns the position;
+    empty means the gold idx wasn't in the ranking at all -> rank undefined -> 0.0.
+    """
+    ranked_idx = np.asarray(ranked_idx)
+    hit = np.where(ranked_idx == gold_idx)[0]
+    if hit.size == 0:
+        return 0.0
+    rank = int(hit[0]) + 1  # 0-based position -> 1-based rank
+    return 1.0 / rank
+
+
 def _sanity():
     """toy vectors with a ranking i can verify by eye, so this proves correctness, not just
     that it runs. no model, no data - pure numpy asserts."""
@@ -141,6 +163,16 @@ def _sanity():
     assert recall_at_k(ranked, gold_idx=2, k=3) == 1.0      # ...but caught by k=3
     assert np.isclose(precision_at_k(ranked, gold_idx=0, k=1), 1.0)
     assert np.isclose(precision_at_k(ranked, gold_idx=0, k=4), 0.25)  # one hit over 4 slots
+
+    # reciprocal rank: full ranking here is [0, 1, 2, 3] by construction (row 0 best).
+    assert np.isclose(reciprocal_rank(ranked, gold_idx=0), 1.0)      # rank 1 -> 1/1
+    assert np.isclose(reciprocal_rank(ranked, gold_idx=1), 0.5)      # rank 2 -> 1/2
+    assert np.isclose(reciprocal_rank(ranked, gold_idx=3), 0.25)     # rank 4 -> 1/4
+    assert reciprocal_rank(ranked, gold_idx=99) == 0.0              # absent -> 0, not a crash
+    # and it must NOT saturate the way recall@k does: rank 1 and rank 2 are the same hit
+    # under recall@6 (both 1.0) but reciprocal rank separates them (1.0 vs 0.5).
+    assert recall_at_k(ranked, 0, k=6) == recall_at_k(ranked, 1, k=6)         # both 1.0
+    assert reciprocal_rank(ranked, 0) != reciprocal_rank(ranked, 1)           # 1.0 vs 0.5
 
     print("retrieve.py self-test passed")
     print(f"  cosine(q, M) = {sims.round(3)}")

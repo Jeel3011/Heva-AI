@@ -15,10 +15,6 @@ chunk:
 retrieval:
   k: 6               # top-k, also overridable on the cli with --k
 
-reader:
-  model: google/flan-t5-base   # local, cpu-ok, deterministic
-  max_new_tokens: 32
-
 benchmark:
   buckets: [first, middle, last]   # first 10%, middle 40-60%, last 10%
   k: 6
