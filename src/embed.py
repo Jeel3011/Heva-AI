@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import yaml
+from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -84,9 +85,12 @@ class Embedder:
     def encode(self, texts, kind):
         """kind is 'query' or 'passage'. returns (n, dim) float32, unit-normalized."""
         texts = add_prefix(texts, kind, self.model_name)
-        vecs = []
-        for i in range(0, len(texts), self.batch_size):
-            vecs.append(self._encode_batch(texts[i:i + self.batch_size]))
+        starts = range(0, len(texts), self.batch_size)
+        # embedding the whole corpus on cpu is a real ~14min one-time cost (it caches after),
+        # so show a bar for that. a single query is instant - don't clutter its output.
+        if len(texts) > self.batch_size:
+            starts = tqdm(starts, desc=f"embed {kind}", unit="batch")
+        vecs = [self._encode_batch(texts[i:i + self.batch_size]) for i in starts]
         return np.vstack(vecs).astype(np.float32)
 
 
