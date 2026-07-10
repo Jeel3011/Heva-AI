@@ -1,0 +1,218 @@
+[
+  {
+    "id": "q01", "doc_id": 2130,
+    "question": "In Utopia, what adjective did the name of More's book give to the English language for an impracticable scheme?",
+    "answer": "Utopian",
+    "evidence": "we call an impracticable scheme Utopian"
+  },
+  {
+    "id": "q02", "doc_id": 2130,
+    "question": "In Utopia, how many families is each Syphogrant set over?",
+    "answer": "thirty families",
+    "evidence": "The Syphogrants dwell in those that are set over thirty families"
+  },
+  {
+    "id": "q03", "doc_id": 2130,
+    "question": "During Utopian worship, what plays while the people sing hymns to the honour of God?",
+    "answer": "musical instruments",
+    "evidence": "sing hymns to the honour of God, some musical instruments playing all the while"
+  },
+  {
+    "id": "q04", "doc_id": 3207,
+    "question": "In Leviathan, what does Hobbes call an endeavour that is directed away from something?",
+    "answer": "AVERSION",
+    "evidence": "And when the Endeavour is fromward something, it is generally called AVERSION"
+  },
+  {
+    "id": "q05", "doc_id": 3207,
+    "question": "According to Hobbes, obedience to which laws is the greatest worship of all?",
+    "answer": "Lawes of Nature",
+    "evidence": "Obedience to his Lawes (that is, in this case to the Lawes of Nature,) is the greatest worship of all"
+  },
+  {
+    "id": "q06", "doc_id": 3207,
+    "question": "In Leviathan, what does Hobbes say the Heathens called their holy water?",
+    "answer": "Aqua Lustralis",
+    "evidence": "The Heathens had also their Aqua Lustralis, that is to say, Holy Water"
+  },
+  {
+    "id": "q07", "doc_id": 3300,
+    "question": "In The Wealth of Nations, are secrets in manufactures or secrets in trade capable of being kept longer?",
+    "answer": "manufactures",
+    "evidence": "Secrets in manufactures are capable of being longer kept than secrets in trade"
+  },
+  {
+    "id": "q08", "doc_id": 3300,
+    "question": "How many inhabitants is France supposed to contain, according to Adam Smith?",
+    "answer": "24,000,000",
+    "evidence": "France, besides, is supposed to contain 24,000,000 of inhabitants"
+  },
+  {
+    "id": "q09", "doc_id": 3300,
+    "question": "In the London porter brewery, into how many barrels is a quarter of malt commonly brewed?",
+    "answer": "two barrels and a-half",
+    "evidence": "a quarter of malt is commonly brewed into more than two barrels and a-half"
+  },
+  {
+    "id": "q10", "doc_id": 1232,
+    "question": "In 1525, what battle destroyed French rule in Italy and left Francis I a prisoner?",
+    "answer": "battle of Pavia",
+    "evidence": "the battle of Pavia destroyed the French rule in Italy, and left Francis I a prisoner"
+  },
+  {
+    "id": "q11", "doc_id": 1232,
+    "question": "In The Prince, what two animals does Machiavelli say a prince must imitate, one to know the snares and one to frighten the wolves?",
+    "answer": "fox",
+    "evidence": "it is necessary to be a fox to discover the snares and a lion to terrify the wolves"
+  },
+  {
+    "id": "q12", "doc_id": 1232,
+    "question": "On what date did the Florentines commence the battle described near the end of The Prince?",
+    "answer": "10 June 1328",
+    "evidence": "On the morning of 10 June 1328, the Florentines commenced the battle"
+  },
+  {
+    "id": "q13", "doc_id": 2680,
+    "question": "In Meditations, who taught Marcus Aurelius simplicity, reasonableness, gratitude, and a love of true liberty?",
+    "answer": "Apollonius",
+    "evidence": "Apollonius taught him simplicity, reasonableness, gratitude, a love of true liberty"
+  },
+  {
+    "id": "q14", "doc_id": 2680,
+    "question": "In Meditations, where does Marcus Aurelius say the fountain of all good is to be found?",
+    "answer": "within",
+    "evidence": "Look within; within is the fountain of all good"
+  },
+  {
+    "id": "q15", "doc_id": 2680,
+    "question": "In the letter near the end of Meditations, at what town did the writer break his journey, a mile or so from the highroad?",
+    "answer": "Anagnia",
+    "evidence": "we broke our journey at Anagnia, a mile or so from the highroad"
+  },
+  {
+    "id": "q16", "doc_id": 7370,
+    "question": "In the Second Treatise, whose authority does Locke oppose to those who say there were never any men in the state of nature?",
+    "answer": "Hooker",
+    "evidence": "I will not only oppose the authority of the judicious Hooker"
+  },
+  {
+    "id": "q17", "doc_id": 7370,
+    "question": "According to Locke, what alone can make a man a member of a commonwealth?",
+    "answer": "positive engagement",
+    "evidence": "his actually entering into it by positive engagement, and express promise and compact"
+  },
+  {
+    "id": "q18", "doc_id": 4280,
+    "question": "In the Critique of Pure Reason, Kant says pure knowledge a priori is that with which no what element is mixed up?",
+    "answer": "empirical",
+    "evidence": "Pure knowledge à priori is that with which no empirical element is mixed up"
+  },
+  {
+    "id": "q19", "doc_id": 4280,
+    "question": "In which of his works did the philosopher try to prove that the soul cannot be annihilated because a simple being cannot cease to exist?",
+    "answer": "Phaedo",
+    "evidence": "He endeavoured to prove in his Phaedo, that the soul cannot be annihilated"
+  },
+  {
+    "id": "q20", "doc_id": 4280,
+    "question": "Near the end of the Critique, when a dogmatist advances how many arguments for a proposition, Kant says we may be sure not one is conclusive?",
+    "answer": "ten arguments",
+    "evidence": "the dogmatist advances with ten arguments in favour of a proposition"
+  },
+  {
+    "id": "q21", "doc_id": 1497,
+    "question": "In the introduction to The Republic, what is said to be the ordering principle of the three other virtues?",
+    "answer": "one",
+    "evidence": "that one is the ordering principle of the three others"
+  },
+  {
+    "id": "q22", "doc_id": 1497,
+    "question": "In The Republic, out of the question of the sons of whom is the remainder of the work developed?",
+    "answer": "Ariston",
+    "evidence": "The remainder of the Republic is developed out of the question of the sons of Ariston"
+  },
+  {
+    "id": "q23", "doc_id": 10615,
+    "question": "In Locke's Essay Concerning Human Understanding, are ideas said to be naturally imprinted on the mind, given that they are not known to children and idiots?",
+    "answer": "not",
+    "evidence": "Not on Mind naturally imprinted, because not known to Children"
+  },
+  {
+    "id": "q24", "doc_id": 10615,
+    "question": "In the Essay, which two boundless ideas does Locke ask how the mind comes by, since objects fall so short of that largeness?",
+    "answer": "eternity and immensity",
+    "evidence": "how we come by those BOUNDLESS IDEAS of eternity and immensity"
+  },
+  {
+    "id": "q25", "doc_id": 10615,
+    "question": "In the Essay, Locke says mixed modes and relations are archetypes without patterns, and so cannot but be what?",
+    "answer": "adequate",
+    "evidence": "cannot but be adequate, everything being so to itself"
+  },
+  {
+    "id": "q26", "doc_id": 15784,
+    "question": "In Newton's Chronology, a priestess of which deity was brought into Greece and set up the Oracle at Dodona?",
+    "answer": "Jupiter Ammon",
+    "evidence": "A Priestess of _Jupiter Ammon_, being brought by _Phoenician_ merchants into _Greece_"
+  },
+  {
+    "id": "q27", "doc_id": 15784,
+    "question": "In Newton's Chronology, the maritime coast extending from Sidon to the border of Egypt bears what name?",
+    "answer": "Phoenices",
+    "evidence": "Maritima ora quæ a Sidone ad Ægypti limitem extenditur, nomen habet Phoenices"
+  },
+  {
+    "id": "q28", "doc_id": 15784,
+    "question": "In Newton's Chronology, how long did Artaxerxes Mnemon, the son of Darius, reign?",
+    "answer": "forty six years",
+    "evidence": "he Reigned forty six years, and died"
+  },
+  {
+    "id": "q29", "doc_id": 3600,
+    "question": "In his Essays, what does Montaigne say a strong memory is commonly coupled with?",
+    "answer": "infirm judgment",
+    "evidence": "a strong memory is commonly coupled with infirm judgment"
+  },
+  {
+    "id": "q30", "doc_id": 3600,
+    "question": "In the Essays, what does Montaigne say resemblance does not so much make one as difference makes?",
+    "answer": "another",
+    "evidence": "Resemblance does not so much make one as difference makes another"
+  },
+  {
+    "id": "q31", "doc_id": 1998,
+    "question": "In Thus Spake Zarathustra, what does Nietzsche say crieth unto heaven, rather than your sin?",
+    "answer": "self-satisfaction",
+    "evidence": "it is your self-satisfaction that crieth unto heaven"
+  },
+  {
+    "id": "q32", "doc_id": 1998,
+    "question": "In Zarathustra, of what is the rosy dawn said to be jealous, having come too early?",
+    "answer": "morning-dream",
+    "evidence": "Jealous is she always of the glows of my morning-dream"
+  },
+  {
+    "id": "q33", "doc_id": 3300,
+    "question": "In The Wealth of Nations, what does Smith say all demand for certain commodities may be stopped for, perhaps for a twelvemonth?",
+    "answer": "six months",
+    "evidence": "for which all demand is stopped for six months, perhaps for a twelvemonth"
+  },
+  {
+    "id": "q34", "doc_id": 3207,
+    "question": "In Leviathan, Hobbes says leisure is the mother of philosophy, and what is the mother of peace and leisure?",
+    "answer": "Common-wealth",
+    "evidence": "Common-wealth, the mother of Peace, and Leasure"
+  },
+  {
+    "id": "q35", "doc_id": 1232,
+    "question": "How many foot soldiers did Castruccio assemble, along with four thousand horsemen?",
+    "answer": "twenty thousand",
+    "evidence": "He assembled twenty thousand foot soldiers and four thousand horsemen"
+  },
+  {
+    "id": "q36", "doc_id": 2130,
+    "question": "In Utopia, besides herbs, fruits, and bread, what else is sold at the markets for provisions?",
+    "answer": "fish, fowl, and cattle",
+    "evidence": "there are not only herbs, fruits, and bread, but also fish, fowl, and cattle"
+  }
+]
