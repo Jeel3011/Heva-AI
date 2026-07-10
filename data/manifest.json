@@ -1,0 +1,86 @@
+[
+  {
+    "id": 2130,
+    "title": "Utopia (Thomas More)",
+    "source_url": "https://www.gutenberg.org/cache/epub/2130/pg2130.txt",
+    "word_count": 43525,
+    "file": "2130.txt"
+  },
+  {
+    "id": 3207,
+    "title": "Leviathan (Hobbes)",
+    "source_url": "https://www.gutenberg.org/cache/epub/3207/pg3207.txt",
+    "word_count": 213346,
+    "file": "3207.txt"
+  },
+  {
+    "id": 3300,
+    "title": "The Wealth of Nations (Adam Smith)",
+    "source_url": "https://www.gutenberg.org/cache/epub/3300/pg3300.txt",
+    "word_count": 381076,
+    "file": "3300.txt"
+  },
+  {
+    "id": 1232,
+    "title": "The Prince (Machiavelli)",
+    "source_url": "https://www.gutenberg.org/cache/epub/1232/pg1232.txt",
+    "word_count": 49943,
+    "file": "1232.txt"
+  },
+  {
+    "id": 2680,
+    "title": "Meditations (Marcus Aurelius)",
+    "source_url": "https://www.gutenberg.org/cache/epub/2680/pg2680.txt",
+    "word_count": 71957,
+    "file": "2680.txt"
+  },
+  {
+    "id": 7370,
+    "title": "Second Treatise of Government (Locke)",
+    "source_url": "https://www.gutenberg.org/cache/epub/7370/pg7370.txt",
+    "word_count": 56517,
+    "file": "7370.txt"
+  },
+  {
+    "id": 4280,
+    "title": "The Critique of Pure Reason (Kant)",
+    "source_url": "https://www.gutenberg.org/cache/epub/4280/pg4280.txt",
+    "word_count": 209061,
+    "file": "4280.txt"
+  },
+  {
+    "id": 1497,
+    "title": "The Republic (Plato)",
+    "source_url": "https://www.gutenberg.org/cache/epub/1497/pg1497.txt",
+    "word_count": 216285,
+    "file": "1497.txt"
+  },
+  {
+    "id": 10615,
+    "title": "The Life of the Bee (Maeterlinck)",
+    "source_url": "https://www.gutenberg.org/cache/epub/10615/pg10615.txt",
+    "word_count": 149762,
+    "file": "10615.txt"
+  },
+  {
+    "id": 15784,
+    "title": "The Journal of Henry David Thoreau",
+    "source_url": "https://www.gutenberg.org/cache/epub/15784/pg15784.txt",
+    "word_count": 86568,
+    "file": "15784.txt"
+  },
+  {
+    "id": 3600,
+    "title": "The Essays of Montaigne",
+    "source_url": "https://www.gutenberg.org/cache/epub/3600/pg3600.txt",
+    "word_count": 525864,
+    "file": "3600.txt"
+  },
+  {
+    "id": 1998,
+    "title": "Thus Spake Zarathustra (Nietzsche)",
+    "source_url": "https://www.gutenberg.org/cache/epub/1998/pg1998.txt",
+    "word_count": 110900,
+    "file": "1998.txt"
+  }
+]
