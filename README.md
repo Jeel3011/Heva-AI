@@ -190,6 +190,13 @@ baseline - the loss was never position-specific at retrieval, so a fusion aimed 
 recall has no position-shaped gap to close. i'm reporting the wash straight rather than
 cherry-picking a k or a subset where it happens to win.
 
+the assignment anticipates this exact outcome - "if your mitigation does not improve middle-
+context retrieval, explain why and what you would try next." the *why* is the flat baseline
+above (retrieval carries no positional signal to begin with); the *what next* is the reader
+stage in the last section. a mitigation that shows a fake improvement here would mean either a
+rigged benchmark or a cherry-picked metric, so a clean null is the honest result, not a
+failed one.
+
 ## where it didn't work, and what i'd do with more time
 
 - **the mitigation didn't improve the middle** (or anything). covered above - retrieval is
