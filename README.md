@@ -39,8 +39,8 @@ python -m src.rerank          # attempt 2: MaxSim re-rank (the working mitigatio
 python -m src.chunk_tradeoff  # chunking tradeoff: MRR/hit@1 across boundary + size
 python -m src.chart           # write the png charts to results/
 
-python -m src.cli "how many families is each Syphogrant set over?" --debug
-python -m src.cli "how many families is each Syphogrant set over?" --rerank   # with the mitigation
+python -m src.cli "In The Prince, what two animals must a prince imitate to know snares and frighten wolves?" --debug
+python -m src.cli "In The Prince, what two animals must a prince imitate to know snares and frighten wolves?" --rerank   # with the mitigation
 ```
 
 **about the <5 min claim (measured, warm cache):** embedding ~13k chunks on cpu is a
