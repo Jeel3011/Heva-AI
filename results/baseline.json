@@ -2,6 +2,7 @@
   "baseline": {
     "k": 6,
     "n": 45,
+    "hit@1": 0.4,
     "buckets": {
       "first": {
         "hit_rate": 0.7142857142857143,

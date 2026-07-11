@@ -46,7 +46,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from src.benchmark import BUCKETS, bucket_of, evidence_offset, load_qa
+from src.benchmark import BUCKETS, load_qa, resolve_qa
 from src.chunk import load_config
 from src.corpus import build_corpus
 from src.embed import add_prefix
@@ -106,47 +106,33 @@ def rerank_query(embedder, question, cand_idx, chunks):
 
 
 def run_rerank(k=None, n_candidates=50, cfg=None):
-    """two-stage retrieval scored the same way as the baseline: hit@k by position bucket.
+    """two-stage retrieval scored the same way as the baseline: hit@k by position bucket, plus
+    the strict hit@1 overall.
 
-    stage 1 pooled cosine -> top-n_candidates; stage 2 MaxSim re-rank -> top-k. gold is the
-    chunk whose span covers the answer offset, identical to benchmark.py, so the numbers are
-    directly comparable to the baseline.
+    stage 1 pooled cosine -> top-n_candidates; stage 2 MaxSim re-rank -> top-k. gold comes from
+    resolve_qa (evidence-span overlap), identical to benchmark.py, so the numbers are directly
+    comparable to the baseline.
     """
     cfg = cfg or load_config()
     k = k or cfg["benchmark"]["k"]
 
     chunks, vectors, embedder = build_corpus(cfg)
-    qa = load_qa()
-
-    by_doc = {}
-    for i, c in enumerate(chunks):
-        by_doc.setdefault(c["doc_id"], []).append(i)
+    qa = resolve_qa(load_qa(), chunks)
 
     per_bucket = {b: [] for b in BUCKETS}
-    kept = 0
+    hit1_all = []
     for q in qa:
-        text = (RAW_DIR / f"{q['doc_id']}.txt").read_text(encoding="utf-8")
-        off = evidence_offset(text, q["evidence"])
-        if off is None:
-            continue
-        bucket = bucket_of(off / max(len(text), 1))
-        if bucket is None:
-            continue
-        gold = [i for i in by_doc.get(q["doc_id"], [])
-                if chunks[i]["char_start"] <= off < chunks[i]["char_end"]]
-        if not gold:
-            continue
-
         qvec = embedder.encode([q["question"]], "query")[0]
         scores = cosine_sim(qvec, vectors)
         cand, _ = top_k(scores, n_candidates)
         ranked, _ = rerank_query(embedder, q["question"], cand, chunks)
 
-        topk = set(ranked[:k])
-        per_bucket[bucket].append(1.0 if any(g in topk for g in gold) else 0.0)
-        kept += 1
+        gold = set(q["gold"])
+        per_bucket[q["bucket"]].append(1.0 if gold & set(ranked[:k]) else 0.0)
+        hit1_all.append(1.0 if ranked and ranked[0] in gold else 0.0)
 
-    out = {"k": k, "n": kept, "n_candidates": n_candidates, "buckets": {}}
+    out = {"k": k, "n": len(qa), "n_candidates": n_candidates,
+           "hit@1": float(np.mean(hit1_all)) if hit1_all else 0.0, "buckets": {}}
     for b in BUCKETS:
         hits = per_bucket[b]
         out["buckets"][b] = {"hit_rate": float(np.mean(hits)) if hits else 0.0, "n": len(hits)}
@@ -170,6 +156,9 @@ def _print_delta(baseline, rerank):
           f"({new_all - base_all:+.3f})")
     mid_d = rerank["buckets"]["middle"]["hit_rate"] - baseline["buckets"]["middle"]["hit_rate"]
     print(f"  middle bucket: {mid_d:+.3f}  (the buried-answer case the mean-pool was diluting)")
+    if "hit@1" in baseline and "hit@1" in rerank:
+        print(f"  hit@1 (gold ranked #1): {baseline['hit@1']:.3f} -> {rerank['hit@1']:.3f} "
+              f"({rerank['hit@1'] - baseline['hit@1']:+.3f})  -- the strict bar moves too")
 
 
 if __name__ == "__main__":

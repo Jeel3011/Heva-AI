@@ -49,7 +49,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src.benchmark import BUCKETS, evidence_offset, load_qa, bucket_of
+from src.benchmark import BUCKETS, evidence_span, load_qa, bucket_of
 from src.chunk import load_config
 from src.corpus import build_corpus
 from src.retrieve import cosine_sim, top_k
@@ -85,8 +85,11 @@ def rrf_fuse(ranked_lists, c=RRF_C):
     return sorted(scores, key=scores.get, reverse=True)
 
 
-def _covers(chunk, off):
-    return chunk["char_start"] <= off < chunk["char_end"]
+def _covers(chunk, span):
+    # a chunk covers the answer if its [start, end) overlaps the evidence span - same
+    # overlap rule benchmark.resolve_qa uses, so RRF gold matches the baseline's gold.
+    ev_start, ev_end = span
+    return chunk["char_start"] < ev_end and ev_start < chunk["char_end"]
 
 
 def run_mitigation(k=None, depth=100, cfg=None):
@@ -122,10 +125,10 @@ def run_mitigation(k=None, depth=100, cfg=None):
     lost = 0
     for q, qvec in zip(qa, qvecs):
         text = (RAW_DIR / f"{q['doc_id']}.txt").read_text(encoding="utf-8")
-        off = evidence_offset(text, q["evidence"])
-        if off is None:
+        span = evidence_span(text, q["evidence"])
+        if span is None:
             continue
-        frac = off / max(len(text), 1)
+        frac = ((span[0] + span[1]) // 2) / max(len(text), 1)
         bucket = bucket_of(frac)
         if bucket is None:
             continue
@@ -142,7 +145,7 @@ def run_mitigation(k=None, depth=100, cfg=None):
             ranked_lists.append(keys)
             for rank_pos, i in enumerate(idx):
                 c = chunks[int(i)]
-                if c["doc_id"] == q["doc_id"] and _covers(c, off):
+                if c["doc_id"] == q["doc_id"] and _covers(c, span):
                     covered_keys.add(span_key(c))
                     if vi == 0 and rank_pos < k:
                         fixed_hit = True

@@ -72,30 +72,43 @@ def bucket_of(frac):
     return None
 
 
-def evidence_offset(text, evidence):
-    """char offset of the evidence fragment in the raw doc, whitespace-insensitively.
+def evidence_span(text, evidence):
+    """(start, end) char span of the evidence fragment in the raw doc, whitespace-insensitively,
+    or None if it doesn't occur.
 
     the raw books wrap lines mid-sentence, so an exact substring find fails on most quotes.
-    we match with every run of whitespace treated as flexible (\\s+) - which is legitimate
-    because chunk.py's spans come from the same text and the cli collapses whitespace the
-    same way, so the fragment we locate is the same text the model actually embeds. returns
-    the midpoint char of the match, or None if it doesn't occur (caller drops the question).
-    """
+    we match with every run of whitespace treated as flexible (\\s+) - legitimate because
+    chunk.py's spans come from the same text and the cli collapses whitespace the same way, so
+    the fragment we locate is the same text the model actually embeds. the evidence fragment is
+    a long verbatim quote, so it occurs exactly once - we take the first (only) match."""
     parts = evidence.split()
     pat = r"\s+".join(re.escape(p) for p in parts)
     m = re.search(pat, text)
-    if m is None:
-        return None
-    return (m.start() + m.end()) // 2
+    return (m.start(), m.end()) if m else None
+
+
+def evidence_offset(text, evidence):
+    """midpoint char of the evidence fragment - the answer's POINT position, which drops it
+    into a bucket. gold-chunk resolution uses the full span (evidence_span); the bucket only
+    needs one representative char, and the midpoint is the least edge-biased choice."""
+    span = evidence_span(text, evidence)
+    return (span[0] + span[1]) // 2 if span else None
 
 
 def resolve_qa(qa, chunks):
     """attach each question's position bucket and its gold chunk row-indices.
 
-    gold = chunks from the answer's doc whose [char_start, char_end) span covers the
-    evidence offset. returns the list of resolved questions (dropping any whose evidence
-    doesn't match or whose position falls between buckets), each with 'bucket', 'frac',
-    'gold' (list of corpus row indices).
+    gold = chunks from the answer's doc whose [char_start, char_end) span OVERLAPS the
+    evidence span. overlap, not point-coverage: with 50-token overlap the answer text often
+    straddles two adjacent chunks, and retrieving either one is a genuine find - the answer is
+    right there in the chunk. scoring only the chunk that covers the evidence *midpoint* as gold
+    counts an adjacent chunk that also contains the answer as a miss, a false negative that
+    deflates every hit@k. we key off the full evidence SPAN (a long unique quote), not the bare
+    answer phrase (which can recur hundreds of times), so this widens the gold set honestly
+    without inflating it with unrelated occurrences.
+
+    returns the resolved questions (dropping any whose evidence doesn't match or whose position
+    falls between buckets), each with 'bucket', 'frac', 'gold' (list of corpus row indices).
     """
     # group chunk row indices by doc so the gold lookup is a small scan, not a full pass
     by_doc = {}
@@ -105,17 +118,20 @@ def resolve_qa(qa, chunks):
     resolved = []
     for q in qa:
         text = (RAW_DIR / f"{q['doc_id']}.txt").read_text(encoding="utf-8")
-        off = evidence_offset(text, q["evidence"])
-        if off is None:
+        span = evidence_span(text, q["evidence"])
+        if span is None:
             continue
-        frac = off / max(len(text), 1)
+        ev_start, ev_end = span
+        frac = ((ev_start + ev_end) // 2) / max(len(text), 1)  # midpoint = the answer's position
         bucket = bucket_of(frac)
         if bucket is None:
             continue
+        # a chunk is gold if its [start, end) overlaps the evidence span at all:
+        # chunk_start < ev_end and ev_start < chunk_end
         gold = [i for i in by_doc.get(q["doc_id"], [])
-                if chunks[i]["char_start"] <= off < chunks[i]["char_end"]]
+                if chunks[i]["char_start"] < ev_end and ev_start < chunks[i]["char_end"]]
         if not gold:
-            continue  # no chunk covers the offset (shouldn't happen, but don't fake a gold)
+            continue  # no chunk overlaps the evidence (shouldn't happen, but don't fake a gold)
         resolved.append({**q, "bucket": bucket, "frac": frac, "gold": gold})
     return resolved
 
@@ -143,12 +159,15 @@ def run_baseline(k=None, cfg=None):
     qvecs = embedder.encode([q["question"] for q in qa], "query")
 
     per_bucket = {b: [] for b in BUCKETS}
+    hit1_all = []
     for q, qvec in zip(qa, qvecs):
         scores = cosine_sim(qvec, vectors)
-        ranked_idx, _ = top_k(scores, k)
+        ranked_idx, _ = top_k(scores, max(k, 1))
         per_bucket[q["bucket"]].append(_hit(ranked_idx, q["gold"], k))
+        hit1_all.append(_hit(ranked_idx, q["gold"], 1))  # strict: gold ranked #1
 
-    out = {"k": k, "n": len(qa), "buckets": {}}
+    out = {"k": k, "n": len(qa), "hit@1": float(np.mean(hit1_all)) if hit1_all else 0.0,
+           "buckets": {}}
     for b in BUCKETS:
         hits = per_bucket[b]
         out["buckets"][b] = {"hit_rate": float(np.mean(hits)) if hits else 0.0, "n": len(hits)}
