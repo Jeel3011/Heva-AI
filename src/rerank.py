@@ -33,8 +33,8 @@ architecture - retrieve then re-rank (standard two-stage, all from scratch):
   we never build a token index over the corpus (that's the ColBERT storage cost we're
   avoiding); we recompute token embeddings for just the N candidates at query time.
 
-result on the 36-question benchmark: hit@6 goes 0.693 -> 0.861 overall, and crucially the
-MIDDLE bucket improves (0.636 -> 0.727) along with the edges. the delta is reported per
+result on the 45-question benchmark: hit@6 goes 0.681 -> 0.836 overall, and crucially the
+MIDDLE bucket improves (0.600 -> 0.650) along with the edges. the delta is reported per
 bucket by run_rerank / the benchmark diff below.
 
     python -m src.rerank

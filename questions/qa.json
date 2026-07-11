@@ -214,5 +214,59 @@
     "question": "In Utopia, besides herbs, fruits, and bread, what else is sold at the markets for provisions?",
     "answer": "fish, fowl, and cattle",
     "evidence": "there are not only herbs, fruits, and bread, but also fish, fowl, and cattle"
+  },
+  {
+    "id": "q37", "doc_id": 2130,
+    "question": "In Utopia, into how many equal parts is every city divided, with a market-place in the middle of each?",
+    "answer": "four equal parts",
+    "evidence": "Every city is divided into four equal parts, and in the middle of each there is a market-place"
+  },
+  {
+    "id": "q38", "doc_id": 3300,
+    "question": "In The Wealth of Nations, the circulating gold and silver of the country had not been supposed to exceed what amount?",
+    "answer": "£18,000,000",
+    "evidence": "had not been supposed to exceed £18,000,000"
+  },
+  {
+    "id": "q39", "doc_id": 1232,
+    "question": "In The Prince, on his arrival at Rome, the Senate elected which man emperor through fear, and killed Julian?",
+    "answer": "Senate",
+    "evidence": "the Senate, through fear, elected him emperor and killed Julian"
+  },
+  {
+    "id": "q40", "doc_id": 1232,
+    "question": "In The Prince, having decided to attack one rival and deceive the other, whom did he decide to attack first?",
+    "answer": "Niger",
+    "evidence": "he decided to attack Niger and to deceive Albinus"
+  },
+  {
+    "id": "q41", "doc_id": 7370,
+    "question": "In the Second Treatise, for how many years was Jephtha the captain-general, or judge, of Israel?",
+    "answer": "six years",
+    "evidence": "was their captain-general six years"
+  },
+  {
+    "id": "q42", "doc_id": 3207,
+    "question": "In Leviathan, Hobbes says a man's conscience and his judgement are the same thing, so like the judgement the conscience may be what?",
+    "answer": "erroneous",
+    "evidence": "as the Judgement, so also the Conscience may be erroneous"
+  },
+  {
+    "id": "q43", "doc_id": 10615,
+    "question": "In Locke's Essay, what are named as the properest measures of time for mankind?",
+    "answer": "the Sun and Moon",
+    "evidence": "The Revolutions of the Sun and Moon, the properest Measures of Time for mankind"
+  },
+  {
+    "id": "q44", "doc_id": 1998,
+    "question": "In Thus Spake Zarathustra, Nietzsche says man is the best what?",
+    "answer": "beast of prey",
+    "evidence": "for man is the best beast of prey"
+  },
+  {
+    "id": "q45", "doc_id": 15784,
+    "question": "In Newton's Chronology, how many years did he spend setting up pillars with inscriptions in all his conquests?",
+    "answer": "nine years",
+    "evidence": "spent nine years, setting up pillars with inscriptions in all his conquests"
   }
 ]

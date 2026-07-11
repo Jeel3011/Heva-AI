@@ -3,15 +3,15 @@
   "k": 6,
   "by_strategy": {
     "fixed": {
-      "hit_rate": 0.6944444444444444,
+      "hit_rate": 0.6666666666666666,
       "buckets": {
         "first": {
           "hit_rate": 0.7142857142857143,
           "n": 14
         },
         "middle": {
-          "hit_rate": 0.6363636363636364,
-          "n": 11
+          "hit_rate": 0.6,
+          "n": 20
         },
         "last": {
           "hit_rate": 0.7272727272727273,
@@ -27,8 +27,8 @@
           "n": 14
         },
         "middle": {
-          "hit_rate": 0.6363636363636364,
-          "n": 11
+          "hit_rate": 0.65,
+          "n": 20
         },
         "last": {
           "hit_rate": 0.5454545454545454,
@@ -37,5 +37,5 @@
       }
     }
   },
-  "delta_sentence_minus_fixed": -0.02777777777777779
+  "delta_sentence_minus_fixed": 0.0
 }

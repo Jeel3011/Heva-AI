@@ -1,15 +1,15 @@
 {
   "baseline": {
     "k": 6,
-    "n": 36,
+    "n": 45,
     "buckets": {
       "first": {
         "hit_rate": 0.7142857142857143,
         "n": 14
       },
       "middle": {
-        "hit_rate": 0.6363636363636364,
-        "n": 11
+        "hit_rate": 0.6,
+        "n": 20
       },
       "last": {
         "hit_rate": 0.7272727272727273,
@@ -19,8 +19,8 @@
   },
   "mitigation": {
     "k": 6,
-    "n": 36,
-    "gained": 3,
+    "n": 45,
+    "gained": 4,
     "lost": 3,
     "buckets": {
       "first": {
@@ -28,8 +28,8 @@
         "n": 14
       },
       "middle": {
-        "hit_rate": 0.6363636363636364,
-        "n": 11
+        "hit_rate": 0.65,
+        "n": 20
       },
       "last": {
         "hit_rate": 0.7272727272727273,
