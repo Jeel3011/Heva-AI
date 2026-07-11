@@ -33,7 +33,7 @@ python -m src.ingest          # download the 12 books from gutenberg (~1 min, on
 python -m src.benchmark       # baseline: hit@k by position + precision/recall vs k
 python -m src.mitigate        # attempt 1: RRF fusion (netted zero, kept for honesty)
 python -m src.rerank          # attempt 2: MaxSim re-rank (the working mitigation, +0.172)
-python -m src.chunk_tradeoff  # fixed vs sentence chunking
+python -m src.chunk_tradeoff  # chunking tradeoff: MRR/hit@1 across boundary + size
 python -m src.chart           # write the png charts to results/
 
 python -m src.cli "how many families is each Syphogrant set over?" --debug
@@ -138,31 +138,45 @@ mean-pooling over its token embeddings. a chunk that ends mid-sentence is out-of
 and its mean-pool smears two half-thoughts into one vector; keeping whole sentences means the
 pooled vector represents one coherent thought. that's the *theory*.
 
-**the tradeoff, measured:** smaller / edge-cut chunks buy positional diversity (a fact is
-localized, not buried in filler) but lose semantic completeness. i measured the boundary
-axis - fixed vs sentence at the *same* 256-token budget, so the only variable is where a
-chunk may end - on the same 45-question benchmark:
+**the tradeoff, measured:** the spec's claim is two-sided - smaller chunks buy *positional
+diversity*, boundary-aware chunks buy *semantic completeness* - so i measured both sides on the
+same 45-question benchmark, retrieving each question against all ~13k chunks
+([src/chunk_tradeoff.py](src/chunk_tradeoff.py)).
 
-| variant | hit@6 |
-|---------|-------|
-| fixed, 256 tok   | 0.756 |
-| sentence, 256 tok | 0.756 |
-| fixed, 128 tok   | 0.756 |
+the first thing to get right is the *metric*. hit@6 is the wrong lens: it's binary and
+saturates. once the gold chunk is anywhere in the top 6, every variant scores 1.0 and a real
+difference in *where* the gold ranked is invisible. across all three variants hit@6 is a flat
+0.756 - that's not "no difference", it's a metric with no dynamic range. so i report MRR (mean
+reciprocal rank of the gold chunk: rank 1 → 1.0, rank 4 → 0.25) and the stricter hit@1, which
+keep the gradient hit@6 throws away.
 
-two axes, both measured on the 45-question benchmark:
-- **boundary policy** (fixed vs sentence, same 256-token budget): dead tie, 0.756 = 0.756.
-- **chunk size** (fixed 128 vs 256 tokens): also a tie, 0.756 = 0.756.
+| variant | chunks | hit@1 | hit@3 | hit@6 | **MRR** |
+|---------|-------:|------:|------:|------:|--------:|
+| fixed, 256 tok    | 13,260 | 0.400 | 0.622 | 0.756 | 0.548 |
+| sentence, 256 tok | 12,210 | **0.533** | 0.622 | 0.756 | **0.617** |
+| fixed, 128 tok    | 28,451 | 0.556 | 0.711 | 0.756 | **0.646** |
 
-so on this corpus neither axis of the chunking tradeoff moves *retrieval accuracy*. that's a
-real, slightly humbling data point, and the reason is specific to this benchmark: the answers
-are short, lexically distinctive facts (a name, a number, a place), and a distinctive fact
-survives being cut mid-sentence or split into a smaller window - it still lands in *some* chunk
-that matches the query. the theory (smaller = more positional diversity but less semantic
-completeness; boundary-aware = cleaner mean-pool) is sound, but its effect on hit@k is below
-the noise floor for fact-retrieval on this corpus. where it *would* bite is multi-sentence or
-discourse-level answers, where a mid-sentence cut actually severs the relevant span - that's
-the case i'd construct to surface it with more time. reporting the tie straight rather than
-inventing a difference.
+**semantic-completeness side (boundary policy, same 256-token budget, only the cut differs):**
+sentence-packing ranks the gold **+0.069 MRR** higher (0.548 → 0.617) and moves **hit@1 from
+0.400 to 0.533** - six more of the 45 questions get the gold chunk at rank 1. hit@6 saw none of
+this. the mechanism is exactly the mean-pool story above: a fixed window that cuts mid-sentence
+smears two half-thoughts into one vector, so the gold chunk's direction drifts and it ranks
+*lower* against 13k competitors even though it's still findable by k=6. keeping the sentence
+whole gives a cleaner pooled vector, and cleaner shows up as *higher rank*, not as a new hit.
+
+**positional-diversity side (fixed strategy, 128 vs 256 tokens):** halving the budget fragments
+the corpus **2.15× finer** (13,260 → 28,451 chunks). each fact now lives in a shorter chunk with
+less surrounding filler diluting the mean-pool, so the answer surfaces higher still: **MRR +0.098**
+(0.548 → 0.646), hit@1 0.400 → 0.556. that's the diversity side made concrete - more, finer
+positions = better localization of the answer.
+
+**the one that *didn't* move, reported straight:** the raw query→gold cosine is ~0.82 across
+every variant (0.824 / 0.824 / 0.831). i expected boundary-aware to lift it and it basically
+didn't - the answers are short distinctive phrases that dominate their chunk's vector either
+way, and e5 truncates identically at 512. so the tradeoff does *not* live in the absolute cosine
+of the gold chunk; it lives in that chunk's **rank against every competitor**, which is why MRR
+sees it and cosine doesn't. i left this in rather than dropping it, because "the metric i
+predicted would move stayed flat, and here's the mechanistic reason" is the honest version.
 
 ## embedding + retrieval
 
