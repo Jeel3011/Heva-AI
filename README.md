@@ -38,12 +38,24 @@ python -m src.cli "how many families is each Syphogrant set over?" --debug
 python -m src.cli "how many families is each Syphogrant set over?" --rerank   # with the mitigation
 ```
 
-**about the <5 min claim:** the one real cost is embedding ~13k chunks on cpu, which is a
-~10-15 min *one-time* job. it's cached to disk (`data/cache/*.npy`) the first time, and every
-run after that is warm: the full benchmark is ~10s, a cli query ~2s. so the reproducible
-analysis loop the assignment cares about runs in well under 5 minutes - the first cold embed
-is the exception, and it only happens once. i'd rather be straight about that than pretend a
-cold cpu embed of a 2M-word corpus is instant.
+**about the <5 min claim (measured, warm cache):** embedding ~13k chunks on cpu is a
+~10-15 min *one-time* job, cached to disk (`data/cache/*.npy`) the first time; every run after
+is warm. measured warm timings on cpu:
+
+| step | time |
+|------|------|
+| `benchmark` (baseline + k-sweep) | ~6s |
+| `mitigate` (RRF) | ~4s |
+| `chunk_tradeoff` | ~4s |
+| `rerank` (MaxSim, 36 q x 50 cand) | ~2 min |
+| `chart` | ~1s |
+| single cli query (pooled / `--rerank`) | ~2s / ~3-4s |
+
+everything except the cold embed fits in ~2.5 min total. the rerank step dominates because
+MaxSim recomputes token embeddings for 50 candidates per query at ~3.4s/query - that's the
+price of late interaction without a precomputed token index, and it's the honest number, not
+a rounded-down one. the first cold embed is the only thing that exceeds 5 min, and it happens
+once.
 
 ## the benchmark (the core)
 
@@ -258,9 +270,9 @@ of single coherent thread the assignment is asking for.
   per-bucket deltas. the MaxSim win is robust across N and k, but more qa pairs would tighten
   the numbers and is the first thing i'd add.
 - **MaxSim re-ranking is slower** - it recomputes token embeddings for the top-50 at query
-  time (~a second or two per query on cpu). fine for a benchmark; for production i'd
-  precompute and store token vectors (the real ColBERT design) or distill it into a lighter
-  cross-encoder.
+  time (~3.4s per query on cpu, so the rerank benchmark takes ~2 min vs ~6s for the pooled
+  baseline). fine for a benchmark; for production i'd precompute and store token vectors (the
+  real ColBERT design) or distill it into a lighter cross-encoder.
 - **the boundary-aware chunking underperformed** its own theory (fixed beat sentence by
   0.028). worth digging into whether a different budget or a paragraph boundary changes that.
 - **the real next step** is a reader stage. even with retrieval fixed, lost-in-the-middle also
