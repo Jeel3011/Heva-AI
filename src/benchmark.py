@@ -155,7 +155,7 @@ def run_baseline(k=None, cfg=None):
     return out
 
 
-def run_k_sweep(ks=(1, 3, 5, 10, 20), cfg=None):
+def run_k_sweep(ks=(1, 3, 5, 10, 20, 50), cfg=None):
     """precision/recall as k grows, averaged over all questions (the spec's k-sweep).
 
     with one answer location per question, recall@k is the hit-rate (climbs then plateaus at
