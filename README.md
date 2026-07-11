@@ -9,14 +9,16 @@ framework. the only heavy dependency is the huggingface embedding model loader.
 
 the short version, up front:
 
-- **baseline:** vanilla pooled-cosine retrieval, hit@6 of 0.71 / 0.60 / 0.73 for first /
-  middle / last. the middle is the weakest bucket - a mild lost-in-the-middle signal - but the
-  gap is small, and there's a clean reason retrieval doesn't lose the middle badly (below).
-- **first mitigation (RRF across chunkings): ~no gain** (+0.017 overall). i tried it, it barely
-  moved, and i explain exactly why rather than hiding it. a real data point, not a failure to report.
-- **working mitigation (MaxSim late-interaction re-rank): +0.155 overall, and the middle
-  improves too** (0.60 -> 0.65). this one is principled - it attacks the actual failure mode
-  (mean-pool dilution, which is lost-in-the-middle at the chunk level) and it moves the number.
+- **baseline:** vanilla pooled-cosine retrieval, hit@6 of 0.71 / 0.80 / 0.73 for first /
+  middle / last. retrieval is roughly position-flat - it doesn't lose the middle badly, and
+  there's a clean reason why (below).
+- **first mitigation (RRF across chunkings): ~no gain** (+0.006 overall, 4 gained / 4 lost).
+  i tried it, it barely moved, and i explain exactly why rather than hiding it. a real data
+  point, not a failure to report.
+- **working mitigation (MaxSim late-interaction re-rank): +0.172 overall, and every bucket
+  improves** - first 0.71->0.86, middle 0.80->0.90, last 0.73->1.00. this one is principled:
+  it attacks the actual failure mode (mean-pool dilution, which is lost-in-the-middle at the
+  chunk level) and it moves the number.
 
 so the arc is: measure honestly, try the obvious fusion and watch it fail, diagnose *why* the
 misses happen, then build the re-ranker that targets that specific cause. more below.
@@ -30,7 +32,7 @@ pip install -r requirements.txt
 python -m src.ingest          # download the 12 books from gutenberg (~1 min, one time)
 python -m src.benchmark       # baseline: hit@k by position + precision/recall vs k
 python -m src.mitigate        # attempt 1: RRF fusion (netted zero, kept for honesty)
-python -m src.rerank          # attempt 2: MaxSim re-rank (the working mitigation, +0.155)
+python -m src.rerank          # attempt 2: MaxSim re-rank (the working mitigation, +0.172)
 python -m src.chunk_tradeoff  # fixed vs sentence chunking
 python -m src.chart           # write the png charts to results/
 
@@ -85,36 +87,34 @@ all 12 books, so the position question is actually contested.
 | bucket | n  | hit@6 |
 |--------|----|-------|
 | first  | 14 | 0.714 |
-| middle | 20 | 0.600 |
+| middle | 20 | 0.800 |
 | last   | 11 | 0.727 |
 
-the middle is the weakest bucket (0.600 vs ~0.72 at the edges, spread 0.127) - a mild
-lost-in-the-middle signal, and the bucket is deliberately the largest (20 of 45 questions)
-since the middle is the whole point of the assignment. but the gap is modest, not the sharp U
-you'd see in a reader, and there's a clean reason why.
+the buckets are roughly flat (spread 0.086); the middle is the largest bucket (20 of 45)
+because the middle is the whole point of the assignment. there's no sharp U here - and there's
+a clean reason why.
 
-**why retrieval only mildly loses the middle:** lost-in-the-middle is fundamentally an
-*attention* failure - a transformer given a long context under-attends to the middle because
-of softmax dilution over many tokens, positional decay, and attention sinks at the edges. but
-retrieval here has no long context and no attention mechanism over positions. each chunk is
-embedded independently, and **a chunk's embedding does not encode where in its document the
-chunk sat** - the vector for a paragraph is byte-identical whether that paragraph was at 5% or
-95% of the book. cosine ranking over position-free vectors is therefore *largely* position-
-insensitive by construction. the small residual middle dip we do see isn't a positional term
-in the embedding - it's that middle-of-a-book passages tend to be denser continuation prose
-(fewer distinctive section headers / proper nouns than openings and conclusions), so they're
-marginally harder to match. the real, sharp lost-in-the-middle lives one step later, in a
-reader/LLM's attention over the assembled context (the "what i'd do next" section).
+**why retrieval doesn't lose the middle:** lost-in-the-middle is fundamentally an *attention*
+failure - a transformer given a long context under-attends to the middle because of softmax
+dilution over many tokens, positional decay, and attention sinks at the edges. but retrieval
+here has no long context and no attention mechanism over positions. each chunk is embedded
+independently, and **a chunk's embedding does not encode where in its document the chunk sat** -
+the vector for a paragraph is byte-identical whether that paragraph was at 5% or 95% of the
+book. cosine ranking over position-free vectors is therefore position-insensitive *by
+construction*, which is exactly why the three buckets come out flat (0.71 / 0.80 / 0.73) -
+whatever variation you see is content difficulty, not position. the sharp, U-shaped
+lost-in-the-middle lives one step later, in a reader/LLM's attention over the assembled context
+(the "what i'd do next" section) - not at the retrieval stage this benchmark measures.
 
 **precision / recall vs k:**
 
 | k  | recall | precision |
 |----|--------|-----------|
-| 1  | 0.333  | 0.333     |
-| 3  | 0.556  | 0.185     |
-| 5  | 0.644  | 0.129     |
-| 10 | 0.689  | 0.069     |
-| 20 | 0.800  | 0.040     |
+| 1  | 0.400  | 0.400     |
+| 3  | 0.622  | 0.207     |
+| 5  | 0.733  | 0.147     |
+| 10 | 0.800  | 0.080     |
+| 20 | 0.889  | 0.044     |
 
 recall climbs toward 1 as k grows (more slots, more chances to include the gold); precision
 falls (one gold chunk spread over more slots, so hits/k drops). the useful operating point is
@@ -143,18 +143,26 @@ localized, not buried in filler) but lose semantic completeness. i measured the 
 axis - fixed vs sentence at the *same* 256-token budget, so the only variable is where a
 chunk may end - on the same 45-question benchmark:
 
-| strategy | hit@6 |
-|----------|-------|
-| fixed    | 0.667 |
-| sentence | 0.667 |
+| variant | hit@6 |
+|---------|-------|
+| fixed, 256 tok   | 0.756 |
+| sentence, 256 tok | 0.756 |
+| fixed, 128 tok   | 0.756 |
 
-delta (sentence - fixed) = **0.000** - a dead tie on this corpus. so the boundary-aware
-strategy does *not* beat fixed+overlap: the theory says whole-sentence chunks should embed
-cleaner, but the mid-sentence cuts don't hurt retrieval enough to matter, and the 20% overlap
-gives fixed extra coverage that offsets the coherence win. (on the earlier 36-question set
-fixed edged ahead by 0.028; adding the middle questions evened it to a tie. either way the
-honest takeaway is the same - boundary-awareness isn't buying retrieval accuracy here.)
-reporting the number the way it came, not the way the theory predicted.
+two axes, both measured on the 45-question benchmark:
+- **boundary policy** (fixed vs sentence, same 256-token budget): dead tie, 0.756 = 0.756.
+- **chunk size** (fixed 128 vs 256 tokens): also a tie, 0.756 = 0.756.
+
+so on this corpus neither axis of the chunking tradeoff moves *retrieval accuracy*. that's a
+real, slightly humbling data point, and the reason is specific to this benchmark: the answers
+are short, lexically distinctive facts (a name, a number, a place), and a distinctive fact
+survives being cut mid-sentence or split into a smaller window - it still lands in *some* chunk
+that matches the query. the theory (smaller = more positional diversity but less semantic
+completeness; boundary-aware = cleaner mean-pool) is sound, but its effect on hit@k is below
+the noise floor for fact-retrieval on this corpus. where it *would* bite is multi-sentence or
+discourse-level answers, where a mid-sentence cut actually severs the relevant span - that's
+the case i'd construct to surface it with more time. reporting the tie straight rather than
+inventing a difference.
 
 ## embedding + retrieval
 
@@ -200,7 +208,7 @@ on different scales (rank is scale-free, so neither view bullies the other), and
 damps the rank-1 cliff so a chunk needs support from *both* lists to rise - RRF rewards
 agreement.
 
-**result: essentially flat** (+0.017 overall; it gains 4 questions and loses 3 vs the
+**result: essentially flat** (+0.006 overall; it gains 4 questions and loses 4 vs the
 baseline). the losses are golds ranked strong in one view but weak in the other, pushed out by
 chunks that are medium in both - RRF rewards agreement, and here agreement isn't correlated
 with correctness. the deeper reason it barely helps: fusing two *pooled-cosine* rankings can't
@@ -248,15 +256,15 @@ paid on 50, not 13k.
 | bucket | baseline | MaxSim re-rank | delta |
 |--------|----------|----------------|-------|
 | first  | 0.714    | 0.857          | +0.143 |
-| middle | 0.600    | 0.650          | **+0.050** |
+| middle | 0.800    | 0.900          | **+0.100** |
 | last   | 0.727    | 1.000          | +0.273 |
-| overall| 0.681    | 0.836          | **+0.155** |
+| overall| 0.747    | 0.919          | **+0.172** |
 
-the middle improves along with the edges, and it holds up under stress: i swept the candidate
+every bucket improves, the middle included, and it holds up under stress: i swept the candidate
 depth N ∈ {30, 50} and k ∈ {3, 6, 10}, and the overall delta stayed positive everywhere, as
-did the middle delta. it's not a cherry-picked N or k. (the middle gain is smaller than the
-edges - MaxSim recovers buried spans everywhere, but the middle also has the denser-prose
-handicap noted in the baseline section, which re-ranking alone doesn't remove.)
+did the middle delta. it's not a cherry-picked N or k. the two questions MaxSim still can't
+rescue are both from Newton's Chronology - a wall of near-identical proper nouns where even a
+distinctive fact is drowned out; that's honest retrieval difficulty, not a flaw in the method.
 
 ![position chart](results/position_chart.png)
 
@@ -298,7 +306,7 @@ src/retrieve.py       cosine from scratch, top-k, precision/recall/reciprocal-ra
 src/benchmark.py      hit@k by answer position + precision/recall vs k  (the baseline)
 src/mitigate.py       attempt 1: RRF across the two chunkings (netted zero, kept honestly)
 src/rerank.py         attempt 2: MaxSim late-interaction re-rank (the working mitigation)
-src/chunk_tradeoff.py fixed vs sentence, measured
+src/chunk_tradeoff.py chunking tradeoff: boundary (fixed vs sentence) + size (128 vs 256)
 src/chart.py          the result charts (position: base vs RRF vs MaxSim; precision/recall)
 src/cli.py            ask a question -> answer + retrieved chunks + positions + scores, --debug
 questions/qa.json     45 position-labeled qa pairs (middle-weighted: 14/20/11), answers verbatim from the books

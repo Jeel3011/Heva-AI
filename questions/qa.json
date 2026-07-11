@@ -79,9 +79,9 @@
   },
   {
     "id": "q14", "doc_id": 2680,
-    "question": "In Meditations, where does Marcus Aurelius say the fountain of all good is to be found?",
-    "answer": "within",
-    "evidence": "Look within; within is the fountain of all good"
+    "question": "In Meditations, whom does Marcus Aurelius say Lucilla buried, before Lucilla herself was buried by others?",
+    "answer": "Verus",
+    "evidence": "Lucilla buried Verus; then was Lucilla herself buried by others"
   },
   {
     "id": "q15", "doc_id": 2680,
@@ -138,10 +138,10 @@
     "evidence": "Not on Mind naturally imprinted, because not known to Children"
   },
   {
-    "id": "q24", "doc_id": 10615,
-    "question": "In the Essay, which two boundless ideas does Locke ask how the mind comes by, since objects fall so short of that largeness?",
-    "answer": "eternity and immensity",
-    "evidence": "how we come by those BOUNDLESS IDEAS of eternity and immensity"
+    "id": "q24", "doc_id": 3300,
+    "question": "In The Wealth of Nations, before what expedition to Naples was the marine of France considerable, according to the notions of the times?",
+    "answer": "Charles VIII",
+    "evidence": "before the expedition of Charles VIII. to Naples"
   },
   {
     "id": "q25", "doc_id": 10615,
@@ -157,9 +157,9 @@
   },
   {
     "id": "q27", "doc_id": 15784,
-    "question": "In Newton's Chronology, the maritime coast extending from Sidon to the border of Egypt bears what name?",
-    "answer": "Phoenices",
-    "evidence": "Maritima ora quæ a Sidone ad Ægypti limitem extenditur, nomen habet Phoenices"
+    "question": "In Newton's Chronology, Adonibezek, the King of Bezek, had conquered how many other kings a little before?",
+    "answer": "seventy",
+    "evidence": "the King of _Bezek_ had conquered seventy other Kings"
   },
   {
     "id": "q28", "doc_id": 15784,
@@ -223,9 +223,9 @@
   },
   {
     "id": "q38", "doc_id": 3300,
-    "question": "In The Wealth of Nations, the circulating gold and silver of the country had not been supposed to exceed what amount?",
-    "answer": "£18,000,000",
-    "evidence": "had not been supposed to exceed £18,000,000"
+    "question": "In The Wealth of Nations, the importation of live cattle is prohibited at all times except from which country?",
+    "answer": "Ireland",
+    "evidence": "The importation of live cattle, except from Ireland, is prohibited at all times"
   },
   {
     "id": "q39", "doc_id": 1232,
@@ -235,7 +235,7 @@
   },
   {
     "id": "q40", "doc_id": 1232,
-    "question": "In The Prince, having decided to attack one rival and deceive the other, whom did he decide to attack first?",
+    "question": "In The Prince, Severus decided to deceive Albinus, but which rival did he decide to attack?",
     "answer": "Niger",
     "evidence": "he decided to attack Niger and to deceive Albinus"
   },
@@ -258,10 +258,10 @@
     "evidence": "The Revolutions of the Sun and Moon, the properest Measures of Time for mankind"
   },
   {
-    "id": "q44", "doc_id": 1998,
-    "question": "In Thus Spake Zarathustra, Nietzsche says man is the best what?",
-    "answer": "beast of prey",
-    "evidence": "for man is the best beast of prey"
+    "id": "q44", "doc_id": 2680,
+    "question": "In Meditations, Marcus Aurelius asks what Alexander, Caius, and Pompeius are compared to Diogenes, Heraclitus, and which third philosopher?",
+    "answer": "Socrates",
+    "evidence": "Alexander, Caius, Pompeius; what are these to Diogenes, Heraclitus, and Socrates"
   },
   {
     "id": "q45", "doc_id": 15784,

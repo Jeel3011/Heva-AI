@@ -33,9 +33,9 @@ the math (this is what the interview will ask me to derive):
 
 honesty up front: the baseline was already roughly flat across position buckets, because
 retrieval is largely position-insensitive. so RRF is not expected to carve out a big
-middle-specific win. and on this corpus it doesn't move the aggregate at all - but NOT
-because it's inert. against the fixed baseline it gains 3 questions and loses 3, netting
-exactly zero (a gold ranked #1 in one view gets lifted in; a gold strong in one view but
+middle-specific win. and on this corpus it barely moves the aggregate - but NOT
+because it's inert. against the fixed baseline it gains 4 questions and loses 4, netting
+~zero (a gold ranked #1 in one view gets lifted in; a gold strong in one view but
 weak in the other gets pushed out, because RRF rewards agreement and here agreement isn't
 correlated with correctness). we report that reshuffling straight rather than cherry-picking
 a k or a subset where it happens to win.

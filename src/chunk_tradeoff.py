@@ -40,41 +40,53 @@ def _overall(res):
 
 
 def run_tradeoff(cfg=None):
-    """fixed vs sentence at the same token budget - isolates boundary policy.
+    """two axes of the chunking tradeoff, both on the 45-question benchmark:
+      - boundary policy: fixed vs sentence at the same 256-token budget
+      - chunk size: fixed at 128 vs 256 tokens
 
-    deep-copy the config and flip only chunk.strategy. build_corpus keys its chunk cache on
-    the strategy and embed keys its .npy cache on the chunk texts, so each strategy uses its
-    own already-built corpus - no re-embedding, no stale vectors leaking across.
+    deep-copy the config and flip only the one field per variant. build_corpus keys its chunk
+    cache on strategy+size and embed keys its .npy cache on the chunk texts, so each variant
+    uses its own already-built corpus - no re-embedding, no stale vectors leaking across.
     """
     cfg = cfg or load_config()
-    out = {}
+    boundary = {}
     for strat in STRATEGIES:
         c = copy.deepcopy(cfg)
         c["chunk"]["strategy"] = strat
-        res = run_baseline(cfg=c)
-        out[strat] = {"hit_rate": _overall(res), "buckets": res["buckets"]}
+        boundary[strat] = _overall(run_baseline(cfg=c))
+
+    size = {}
+    for sz in (128, 256):
+        c = copy.deepcopy(cfg)
+        c["chunk"]["strategy"] = "fixed"
+        c["chunk"]["size"] = sz
+        c["chunk"]["overlap"] = min(cfg["chunk"]["overlap"], sz // 4)
+        size[sz] = _overall(run_baseline(cfg=c))
+
     return {
-        "size": cfg["chunk"]["size"],
         "k": cfg["benchmark"]["k"],
-        "by_strategy": out,
-        "delta_sentence_minus_fixed": out["sentence"]["hit_rate"] - out["fixed"]["hit_rate"],
+        "boundary": boundary,
+        "delta_sentence_minus_fixed": boundary["sentence"] - boundary["fixed"],
+        "size": size,
+        "delta_128_minus_256": size[128] - size[256],
     }
 
 
 def _print_report(t):
     print("=" * 60)
-    print(f"CHUNKING TRADEOFF - fixed vs sentence at {t['size']} tokens")
-    print(f"(36-question benchmark, hit@{t['k']} over the whole corpus)")
+    print(f"CHUNKING TRADEOFF (45-question benchmark, hit@{t['k']} over whole corpus)")
     print("=" * 60)
-    print(f"  {'strategy':<10} {'hit_rate':>9}")
-    for s in STRATEGIES:
-        print(f"  {s:<10} {t['by_strategy'][s]['hit_rate']:>9.3f}")
-    d = t["delta_sentence_minus_fixed"]
-    winner = "sentence" if d > 0 else ("fixed" if d < 0 else "tie")
-    print(f"\n  delta (sentence - fixed): {d:+.3f}  ->  {winner}")
-    print("  same 256-token budget, so this isolates BOUNDARY POLICY. fixed cuts mid-sentence")
-    print("  -> a vector smeared across two half-thoughts; sentence keeps one coherent thought")
-    print("  per vector. the delta says whether that coherence buys retrieval on this corpus.")
+    print("  [boundary policy] fixed vs sentence at 256 tokens")
+    print(f"    fixed     {t['boundary']['fixed']:.3f}")
+    print(f"    sentence  {t['boundary']['sentence']:.3f}")
+    print(f"    delta (sentence - fixed): {t['delta_sentence_minus_fixed']:+.3f}")
+    print("\n  [chunk size] fixed at 128 vs 256 tokens")
+    print(f"    128 tok   {t['size'][128]:.3f}")
+    print(f"    256 tok   {t['size'][256]:.3f}")
+    print(f"    delta (128 - 256): {t['delta_128_minus_256']:+.3f}")
+    print("\n  neither axis moves hit@k here: the answers are short distinctive facts that")
+    print("  survive a mid-sentence cut or a smaller window - they still land in some chunk")
+    print("  the query matches. the tradeoff would bite on multi-sentence / discourse answers.")
 
 
 if __name__ == "__main__":
