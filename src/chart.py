@@ -25,25 +25,29 @@ BUCKETS = ["first", "middle", "last"]
 
 def position_chart():
     base = json.loads((RESULTS / "baseline.json").read_text())["baseline"]
-    mit = json.loads((RESULTS / "mitigation.json").read_text())["mitigation"]
+    rrf = json.loads((RESULTS / "mitigation.json").read_text())["mitigation"]
+    rer = json.loads((RESULTS / "rerank.json").read_text())["rerank"]
 
     base_rates = [base["buckets"][b]["hit_rate"] for b in BUCKETS]
-    mit_rates = [mit["buckets"][b]["hit_rate"] for b in BUCKETS]
+    rrf_rates = [rrf["buckets"][b]["hit_rate"] for b in BUCKETS]
+    rer_rates = [rer["buckets"][b]["hit_rate"] for b in BUCKETS]
     x = range(len(BUCKETS))
-    w = 0.38
+    w = 0.27
 
-    fig, ax = plt.subplots(figsize=(6.5, 4))
-    ax.bar([i - w / 2 for i in x], base_rates, w, label="baseline (fixed)", color="#4c72b0")
-    ax.bar([i + w / 2 for i in x], mit_rates, w, label="RRF (fixed+sentence)", color="#dd8452")
+    fig, ax = plt.subplots(figsize=(7.5, 4.2))
+    ax.bar([i - w for i in x], base_rates, w, label="baseline (pooled cosine)", color="#4c72b0")
+    ax.bar(list(x), rrf_rates, w, label="RRF fusion (no gain)", color="#dd8452")
+    ax.bar([i + w for i in x], rer_rates, w, label="MaxSim re-rank", color="#55a868")
     ax.set_xticks(list(x))
     ax.set_xticklabels([f"{b}\n(n={base['buckets'][b]['n']})" for b in BUCKETS])
     ax.set_ylabel(f"hit@{base['k']}")
-    ax.set_ylim(0, 1)
-    ax.set_title("retrieval hit-rate by answer position\n(flat = retrieval is position-insensitive)")
-    ax.legend()
-    for i, (bv, mv) in enumerate(zip(base_rates, mit_rates)):
-        ax.text(i - w / 2, bv + 0.02, f"{bv:.2f}", ha="center", fontsize=8)
-        ax.text(i + w / 2, mv + 0.02, f"{mv:.2f}", ha="center", fontsize=8)
+    ax.set_ylim(0, 1.08)
+    ax.set_title("retrieval hit-rate by answer position\nMaxSim re-rank lifts every bucket, middle included")
+    ax.legend(loc="lower right", fontsize=8)
+    for i, (bv, fv, rv) in enumerate(zip(base_rates, rrf_rates, rer_rates)):
+        ax.text(i - w, bv + 0.02, f"{bv:.2f}", ha="center", fontsize=7)
+        ax.text(i, fv + 0.02, f"{fv:.2f}", ha="center", fontsize=7)
+        ax.text(i + w, rv + 0.02, f"{rv:.2f}", ha="center", fontsize=7)
     fig.tight_layout()
     out = RESULTS / "position_chart.png"
     fig.savefig(out, dpi=120)

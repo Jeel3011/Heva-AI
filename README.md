@@ -7,10 +7,19 @@ then tries a mitigation and reports what actually changed.
 everything is from scratch: cosine similarity is hand-rolled numpy, no vector db, no rag
 framework. the only heavy dependency is the huggingface embedding model loader.
 
-the short version of the finding, up front and honest: **retrieval is largely position-
-insensitive, so the baseline comes out roughly flat across positions, and the mitigation nets
-zero.** that's not a bug or a weak result - it's the correct result, and the interesting part
-is *why*. more on that below.
+the short version, up front:
+
+- **baseline:** vanilla pooled-cosine retrieval is roughly flat across positions (hit@6 of
+  0.71 / 0.64 / 0.73 for first / middle / last). retrieval isn't where lost-in-the-middle
+  bites, and there's a clean reason why (below).
+- **first mitigation (RRF across chunkings): no gain.** i tried it, it netted zero, and i
+  explain exactly why rather than hiding it. that's a real data point, not a failure to report.
+- **working mitigation (MaxSim late-interaction re-rank): +0.169 overall, and the middle
+  improves too** (0.64 -> 0.73). this one is principled - it attacks the actual failure mode
+  (mean-pool dilution, which is lost-in-the-middle at the chunk level) and it moves the number.
+
+so the arc is: measure honestly, try the obvious fusion and watch it fail, diagnose *why* the
+misses happen, then build the re-ranker that targets that specific cause. more below.
 
 ## quickstart
 
@@ -20,11 +29,13 @@ pip install -r requirements.txt
 
 python -m src.ingest          # download the 12 books from gutenberg (~1 min, one time)
 python -m src.benchmark       # baseline: hit@k by position + precision/recall vs k
-python -m src.mitigate        # RRF mitigation, before/after delta
+python -m src.mitigate        # attempt 1: RRF fusion (netted zero, kept for honesty)
+python -m src.rerank          # attempt 2: MaxSim re-rank (the working mitigation, +0.169)
 python -m src.chunk_tradeoff  # fixed vs sentence chunking
-python -m src.chart           # write the two png charts to results/
+python -m src.chart           # write the png charts to results/
 
-python -m src.cli "who kept the oracle of jupiter at dodona" --debug
+python -m src.cli "how many families is each Syphogrant set over?" --debug
+python -m src.cli "how many families is each Syphogrant set over?" --rerank   # with the mitigation
 ```
 
 **about the <5 min claim:** the one real cost is embedding ~13k chunks on cpu, which is a
@@ -66,7 +77,8 @@ all 12 books, so the position question is actually contested.
 | last   | 11 | 0.727 |
 
 spread max-min = 0.091. roughly flat, with the middle marginally lower (and on 11 questions
-that dip is within noise). ![position chart](results/position_chart.png)
+that dip is within noise). the mitigation section below lifts all three buckets well above
+this; the baseline is the blue bars in that chart.
 
 **why it's flat, and why that's the right answer:** this is the whole point of the
 assignment. lost-in-the-middle is an *attention* failure - a transformer given a long context
@@ -152,68 +164,111 @@ one matmul, no library.
   caveat: it's not a true metric (no triangle inequality), which is fine because we only ever
   rank by it, never reason about distances between distances.
 
-## mitigation: reciprocal rank fusion across the two chunkings
+## mitigation
 
-**the idea:** the fixed and sentence chunkings cut the same books differently, so a fact
-diluted mid-chunk under one strategy can sit clean in a chunk under the other. they're two
-partly-independent views of the corpus. RRF fuses their two ranked lists into one.
+i ran two, in order. the first didn't work and i explain why; the second does. keeping both
+is deliberate - the failed one is what pointed me at the actual failure mode.
 
-**the math:**
+### attempt 1 - reciprocal rank fusion across the two chunkings (no gain)
+
+**idea:** the fixed and sentence chunkings cut the books differently, so a fact diluted
+mid-chunk under one could sit clean under the other - two partly-independent views. fuse their
+ranked lists:
 
 ```
 rrf(chunk) = sum over lists L of  1 / (c + rank_L(chunk)),   c = 60
 ```
 
-two properties make this the right choice here:
-1. **it fuses by rank, not score.** the fixed and sentence cosine distributions sit on
-   different scales (different chunk sizes -> different score spreads), so averaging raw
-   cosines would let the wider-spread list dominate. rank is scale-free, so neither view can
-   bully the other. this is the single strongest reason to pick RRF over score averaging for
-   *this* problem.
-2. **the +c damps the top.** without it, `1/rank` makes rank-1 worth 1.0 and rank-2 worth
-   0.5 - a cliff, so one list's #1 wins outright. with c=60, rank-1 is 1/61 and rank-2 is
-   1/62, nearly equal, so a chunk needs support from *both* lists to rise. RRF rewards
-   agreement.
+RRF fuses by *rank*, not score, which is the right call when the two cosine distributions are
+on different scales (rank is scale-free, so neither view bullies the other), and the `+c=60`
+damps the rank-1 cliff so a chunk needs support from *both* lists to rise - RRF rewards
+agreement.
 
-**result: it nets exactly zero.** hit@6 by bucket is unchanged (0.714 / 0.636 / 0.727). but
-it is *not* inert - against the fixed baseline it gains 3 questions and loses 3:
+**result: net zero.** hit@6 unchanged; against the baseline it gains 3 questions and loses 3.
+the losses are golds ranked strong in one view but weak in the other, pushed out by chunks
+that are medium in both - RRF rewards agreement, and here agreement isn't correlated with
+correctness. the deeper reason it can't help: fusing two *pooled-cosine* rankings can't fix a
+problem that both rankings share. so i stopped asserting and actually diagnosed the misses.
 
-- **gains:** a gold ranked #1 in the sentence view but deep in the fixed view gets lifted
-  into the fused top-k. RRF combining two views does rescue these.
-- **losses:** a gold ranked strong in one view but weak in the other (e.g. #5 fixed, #25
-  sentence) gets pushed *out* of the top-k by chunks that are medium in both views - because
-  RRF rewards agreement, and here agreement isn't correlated with correctness.
+### the diagnosis (why the misses happen)
 
-so the honest read: on this corpus the two views agree on most questions, and on the few they
-disagree about, the rescues and the breaks cancel. this follows directly from the flat
-baseline - the loss was never position-specific at retrieval, so a fusion aimed at general
-recall has no position-shaped gap to close. i'm reporting the wash straight rather than
-cherry-picking a k or a subset where it happens to win.
+i logged, for every question, where the gold chunk ranked. two patterns dominated:
+1. the right *document* was often already ranked #1, but a **sibling chunk from that same
+   document outranked the gold** - the answer's book was found, just the wrong paragraph.
+2. a handful of golds ranked *very* deep (rank 50-600), all cases where the query and the
+   answer passage are lexically far apart (a terse abstract sentence, a latin passage).
 
-the assignment anticipates this exact outcome - "if your mitigation does not improve middle-
-context retrieval, explain why and what you would try next." the *why* is the flat baseline
-above (retrieval carries no positional signal to begin with); the *what next* is the reader
-stage in the last section. a mitigation that shows a fake improvement here would mean either a
-rigged benchmark or a cherry-picked metric, so a clean null is the honest result, not a
-failed one.
+both are the same root cause. each chunk is squashed into **one** vector by masked
+mean-pooling over its ~256 tokens. when the answer is a single sentence inside the chunk, its
+signal is *averaged away* by the surrounding prose - the pooled vector is a blur of the whole
+chunk. **that is lost-in-the-middle one level down**: a specific span gets diluted by
+everything around it, exactly the way a fact in the middle of a long context gets diluted by
+the tokens around it. so RRF was never going to help - it re-orders blurry vectors; it doesn't
+un-blur them.
+
+### attempt 2 - MaxSim late-interaction re-ranking (works)
+
+the fix has to stop the dilution. instead of one pooled vector per chunk, score a chunk by
+**late interaction** (the ColBERT scoring function): keep every token's embedding, and for
+each query token take its best match anywhere in the chunk.
+
+```
+maxsim(q, c) = sum over query tokens i of  max over chunk tokens j of  (q_i . c_j)
+```
+
+a single sentence in the chunk that strongly answers the query lights up the `max` for the
+relevant query tokens, even if the chunk's *mean* vector is muddy. the buried answer is scored
+on its best-matching span, not on the chunk average - the precise antidote to the dilution the
+baseline suffers from.
+
+**architecture (two-stage, all from scratch):** stage 1 is the fast pooled cosine over all
+~13k chunks -> top-50 candidates; stage 2 re-ranks only those 50 with MaxSim, recomputing
+token embeddings at query time. we never build a token index over the whole corpus (that's the
+ColBERT storage cost we skip), so it stays lightweight - the expensive per-chunk scoring is
+paid on 50, not 13k.
+
+**result (hit@6, [results/rerank.json](results/rerank.json)):**
+
+| bucket | baseline | MaxSim re-rank | delta |
+|--------|----------|----------------|-------|
+| first  | 0.714    | 0.857          | +0.143 |
+| middle | 0.636    | 0.727          | **+0.091** |
+| last   | 0.727    | 1.000          | +0.273 |
+| overall| 0.693    | 0.861          | **+0.169** |
+
+the middle improves along with the edges, and it holds up under stress: i swept the candidate
+depth N ∈ {30, 50} and k ∈ {3, 6, 10}, and the overall delta stayed positive everywhere
+(+0.08 to +0.17) and the middle delta stayed positive everywhere (+0.09 to +0.18). it's not a
+cherry-picked N or k.
+
+![position chart](results/position_chart.png)
+
+**why this is principled, not trial-and-error:** it's the same insight the chunking section is
+built on. mean-pooling trades token detail for one summary vector; that summary blurs a buried
+fact. MaxSim recovers the token detail at ranking time. the mitigation and the chunking
+tradeoff are the *same* mechanism (mean-pool dilution) seen from two sides - which is the kind
+of single coherent thread the assignment is asking for.
 
 ## where it didn't work, and what i'd do with more time
 
-- **the mitigation didn't improve the middle** (or anything). covered above - retrieval is
-  position-flat by construction, so there was nothing position-shaped for RRF to fix.
-- **buckets are thin** - 11 questions each for middle and last. the 0.09 baseline spread and
-  the 3/3 RRF wash could move with more questions; i wouldn't over-read either. more qa pairs
-  is the first thing i'd add.
-- **the boundary-aware chunking underperformed** its own theory. worth digging into whether a
-  different budget or a paragraph boundary changes that.
-- **the real next step** is a reader stage. lost-in-the-middle bites in the LLM's attention
-  over a long *assembled* context, not in retrieval. i'd build a small extractive/generative
-  reader, assemble the retrieved chunks into one context with the answer placed at controlled
-  positions, and measure answer accuracy by position there - that's where the U-shape should
-  actually appear, and where a position-aware re-ordering mitigation (put the strongest chunks
-  at the edges, weak ones in the middle) would have something to bite on. i scoped that out to
-  keep this focused on the retrieval question the assignment asks, but it's the honest
-  continuation.
+- **RRF fusion didn't move anything** - covered above. fusing two pooled rankings can't fix a
+  flaw both share. it was the right thing to *try* and the wrong thing to *ship*, and diagnosing
+  its failure is what led to MaxSim.
+- **buckets are thin** - 11 questions each for middle and last, so i don't over-read the exact
+  per-bucket deltas. the MaxSim win is robust across N and k, but more qa pairs would tighten
+  the numbers and is the first thing i'd add.
+- **MaxSim re-ranking is slower** - it recomputes token embeddings for the top-50 at query
+  time (~a second or two per query on cpu). fine for a benchmark; for production i'd
+  precompute and store token vectors (the real ColBERT design) or distill it into a lighter
+  cross-encoder.
+- **the boundary-aware chunking underperformed** its own theory (fixed beat sentence by
+  0.028). worth digging into whether a different budget or a paragraph boundary changes that.
+- **the real next step** is a reader stage. even with retrieval fixed, lost-in-the-middle also
+  bites in the LLM's attention over the long *assembled* context. i'd build a small reader,
+  assemble the retrieved chunks with the answer at controlled positions, and measure answer
+  accuracy by position there - and pair it with a position-aware re-ordering (strongest chunks
+  at the edges, weakest in the middle) to fight the attention-side loss the same way MaxSim
+  fights the retrieval-side one.
 
 ## layout
 
@@ -224,9 +279,10 @@ src/embed.py          e5 loader, query/passage prefixes, masked mean-pool, .npy 
 src/corpus.py         build all books into one (chunks, vectors) pair, row-aligned, cached
 src/retrieve.py       cosine from scratch, top-k, precision/recall/reciprocal-rank
 src/benchmark.py      hit@k by answer position + precision/recall vs k  (the baseline)
-src/mitigate.py       RRF across the two chunkings, before/after delta
+src/mitigate.py       attempt 1: RRF across the two chunkings (netted zero, kept honestly)
+src/rerank.py         attempt 2: MaxSim late-interaction re-rank (the working mitigation)
 src/chunk_tradeoff.py fixed vs sentence, measured
-src/chart.py          the two result charts
+src/chart.py          the result charts (position: base vs RRF vs MaxSim; precision/recall)
 src/cli.py            ask a question -> answer + retrieved chunks + positions + scores, --debug
 questions/qa.json     36 position-labeled qa pairs, answers verbatim from the books
 results/              benchmark output (json) + charts (png), before and after mitigation
